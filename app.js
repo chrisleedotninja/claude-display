@@ -50,7 +50,7 @@ function Dashboard({ cards }) {
   }
   return html`
     <div class="cards">
-      ${cards.map((c) => html`<${Card} id=${c.id} status=${c.status} />`)}
+      ${cards.map((c) => html`<${Card} key=${c.id} id=${c.id} status=${c.status} />`)}
     </div>
   `;
 }
