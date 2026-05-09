@@ -14,6 +14,21 @@ export function cardsFromState(records) {
   return records.map((r) => ({ id: r.id, status: r.status }));
 }
 
+// Pure upsert: given the previous cards array and one incoming record,
+// return a new cards array. If the record's id already appears in cards,
+// the matching entry is replaced in place (same index, same length); if
+// the id is new, the record is appended (length grows by one). The input
+// array is not mutated. Reordering is intentionally out of scope here —
+// see chore [014] / sister slice [015].
+export function applyEventToCards(cards, record) {
+  const card = { id: record.id, status: record.status };
+  const idx = cards.findIndex((c) => c.id === record.id);
+  if (idx === -1) return [...cards, card];
+  const next = cards.slice();
+  next[idx] = card;
+  return next;
+}
+
 function Card({ id, status }) {
   return html`
     <div class="card">
