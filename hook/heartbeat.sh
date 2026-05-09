@@ -30,10 +30,30 @@ id="$(printf '%s' "$id_raw" | shasum -a 256 | cut -c1-8)"
 
 url="${CLAUDE_DISPLAY_URL:-http://127.0.0.1:7878}/events"
 
+# Capture the focused aerospace workspace at fire time (macOS-only WM). If the
+# binary is missing, slow, or errors, the value is empty and the field is
+# omitted from the payload — never a placeholder. The 500ms cap keeps the hook
+# well under its overall ~2s budget even if curl below also times out.
+desktop="$(bun -e '
+  if (!Bun.which("aerospace")) { process.exit(0); }
+  const proc = Bun.spawn(["aerospace", "list-workspaces", "--focused"], {
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  const killer = setTimeout(() => { try { proc.kill(); } catch {} }, 500);
+  const exitCode = await proc.exited;
+  clearTimeout(killer);
+  if (exitCode !== 0) process.exit(0);
+  const out = (await new Response(proc.stdout).text()).trim();
+  if (out.length > 0) process.stdout.write(out);
+')"
+
 body="$(bun -e '
-  const [id, id_raw, status] = process.argv.slice(1);
-  process.stdout.write(JSON.stringify({ id, id_raw, status }));
-' "$id" "$id_raw" "active")"
+  const [id, id_raw, status, desktop] = process.argv.slice(1);
+  const payload = { id, id_raw, status };
+  if (typeof desktop === "string" && desktop.length > 0) payload.desktop = desktop;
+  process.stdout.write(JSON.stringify(payload));
+' "$id" "$id_raw" "active" "$desktop")"
 
 curl --silent --show-error \
   --max-time 1 --connect-timeout 1 \
