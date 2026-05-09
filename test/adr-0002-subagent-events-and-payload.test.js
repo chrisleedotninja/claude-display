@@ -17,6 +17,20 @@ describe("ADR 0002 file exists", () => {
   });
 });
 
+describe("ADR 0002 activity event set", () => {
+  const adr = readFileSync(adrPath, "utf8");
+
+  it("states the subagent activity events are the same set as [020]'s top-level mapping", () => {
+    // Look for the [020] reference paired with "same set" / "same as" / "identical" wording.
+    expect(adr).toMatch(/\[020\]/);
+    expect(adr).toMatch(/(same\s+(?:set|as)|identical)[\s\S]{0,80}?\[020\]|\[020\][\s\S]{0,80}?(same\s+(?:set|as)|identical)/i);
+  });
+
+  it("ties the rationale to [007]'s nested-card visibility requirement", () => {
+    expect(adr).toMatch(/\[007\]/);
+  });
+});
+
 describe("ADR 0002 subagent-context detection", () => {
   const adr = readFileSync(adrPath, "utf8");
 
