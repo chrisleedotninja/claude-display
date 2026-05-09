@@ -27,7 +27,7 @@ export function formatElapsed(ms) {
 // empty values flow through as empty strings, and the renderer omits the
 // element entirely rather than substituting a placeholder. (See chore [022] /
 // AC2: never `unknown` or `-` for missing repo/branch.)
-export function cardsFromState(records) {
+export function cardsFromState(records, now = Date.now()) {
   return records.map((r) => {
     const card = {
       id: r.id,
@@ -37,6 +37,16 @@ export function cardsFromState(records) {
     };
     if (typeof r.session_label === "string" && r.session_label.length > 0) {
       card.session_label = r.session_label;
+    }
+    if (
+      typeof r.event_at === "number" &&
+      Number.isFinite(r.event_at) &&
+      r.event_at > 0
+    ) {
+      const delta = now - r.event_at;
+      if (delta >= 0) {
+        card.elapsed = formatElapsed(delta);
+      }
     }
     return card;
   });
