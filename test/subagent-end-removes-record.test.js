@@ -113,4 +113,43 @@ describe("POST /events with status=idle and parent_id removes a known subagent",
     // And of course the subagent is gone.
     expect(parentAfter.subagents).toHaveLength(0);
   });
+
+  it("removes only the named subagent when multiple are recorded under the parent", async () => {
+    // Register the parent.
+    await post({ id: "P5ffffff", id_raw: "host:pane:/p5", status: "working" });
+
+    // Register two subagents under it.
+    await post({
+      id: "Saaaaaaa",
+      id_raw: "P5ffffff:tu-a",
+      status: "active",
+      parent_id: "P5ffffff",
+    });
+    await post({
+      id: "Sbbbbbbb",
+      id_raw: "P5ffffff:tu-b",
+      status: "active",
+      parent_id: "P5ffffff",
+    });
+
+    let records = await (await fetch(`${baseUrl}/api/state`)).json();
+    expect(records[0].subagents).toHaveLength(2);
+
+    // Fire the end event for only one of them.
+    const endRes = await post({
+      id: "Saaaaaaa",
+      id_raw: "P5ffffff:tu-a",
+      status: "idle",
+      parent_id: "P5ffffff",
+    });
+    expect([200, 202]).toContain(endRes.status);
+
+    // The other subagent is still there; only the named one was removed.
+    records = await (await fetch(`${baseUrl}/api/state`)).json();
+    expect(records).toHaveLength(1);
+    expect(records[0].id).toBe("P5ffffff");
+    expect(records[0].subagents).toHaveLength(1);
+    expect(records[0].subagents[0].id).toBe("Sbbbbbbb");
+    expect(records[0].subagents[0].status).toBe("active");
+  });
 });
