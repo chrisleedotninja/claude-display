@@ -110,4 +110,24 @@ describe("hook posts identity", () => {
     expect(records[0].id).toBeString();
     expect(records[0].id.length).toBeGreaterThan(0);
   });
+
+  it("two invocations in the same context produce one record on /api/state", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%5",
+      CLAUDE_DISPLAY_URL: baseUrl,
+    };
+    const stdin = JSON.stringify({ cwd: "/p" });
+
+    const first = await runHook({ env, stdin });
+    expect(first.exitCode, `stderr: ${first.stderr}`).toBe(0);
+    const second = await runHook({ env, stdin });
+    expect(second.exitCode, `stderr: ${second.stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe("active");
+  });
 });
