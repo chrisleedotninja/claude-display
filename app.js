@@ -14,6 +14,21 @@ export function cardsFromState(records) {
   return records.map((r) => ({ id: r.id, status: r.status }));
 }
 
+// Pure upsert: given the previous cards array and one incoming record,
+// return a new cards array. If the record's id already appears in cards,
+// the matching entry is replaced in place (same index, same length); if
+// the id is new, the record is appended (length grows by one). The input
+// array is not mutated. Reordering is intentionally out of scope here —
+// see chore [014] / sister slice [015].
+export function applyEventToCards(cards, record) {
+  const card = { id: record.id, status: record.status };
+  const idx = cards.findIndex((c) => c.id === record.id);
+  if (idx === -1) return [...cards, card];
+  const next = cards.slice();
+  next[idx] = card;
+  return next;
+}
+
 function Card({ id, status }) {
   return html`
     <div class="card">
@@ -37,8 +52,20 @@ function Dashboard({ cards }) {
 export async function mount(rootEl) {
   const res = await fetch("/api/state");
   const records = await res.json();
-  const cards = cardsFromState(records);
+  let cards = cardsFromState(records);
   render(html`<${Dashboard} cards=${cards} />`, rootEl);
+
+  // Open the live channel. EventSource is a browser primitive; in non-DOM
+  // environments (e.g. unit tests of cardsFromState) `mount` isn't called.
+  // No custom onerror reconnect policy — recovery is sister slice [016].
+  if (typeof EventSource !== "undefined") {
+    const source = new EventSource("/events/stream");
+    source.onmessage = (event) => {
+      const record = JSON.parse(event.data);
+      cards = applyEventToCards(cards, record);
+      render(html`<${Dashboard} cards=${cards} />`, rootEl);
+    };
+  }
 }
 
 if (typeof document !== "undefined") {
