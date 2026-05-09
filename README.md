@@ -2,6 +2,28 @@
 
 A localhost-only heartbeat server that records the latest status of each Claude Code session and exposes a state read endpoint. Single-file Bun server, no `node_modules` at runtime, no build step.
 
+## Quickstart
+
+Bring up the server, point two Claude Code sessions at it, and observe two cards on the dashboard. Runtime and transport choices live in [`docs/decisions/0001-heartbeat-stack.md`](docs/decisions/0001-heartbeat-stack.md); this section is procedural only.
+
+Prerequisites: Bun and Claude Code already installed locally. No other tooling, no auth, no external network calls.
+
+1. In shell A (server), from the repo root: `bun run vendor` once after clone, then `bun run start`. The server is now listening on `http://127.0.0.1:7878`.
+2. In each of shells B and C (two separate Claude Code sessions, each in its own terminal pane), edit `~/.claude/settings.json` to add the `SessionStart` hook block from [Configure the hook in Claude Code](#configure-the-hook-in-claude-code) below, replacing `/ABS/PATH/TO/claude-display` with the absolute path to your checkout.
+3. Still in shells B and C, start `claude` in each pane. The hook fires on session start and POSTs an event to the server.
+4. Open `http://127.0.0.1:7878/` in a browser. Refresh once after starting each Claude Code session. You should see two cards, one per session, each showing its 8-character identifier and an `active` status indicator.
+5. Restart one session: in shell B, quit `claude`, then re-run `claude` in the same pane and same `cwd`. Refresh the dashboard. The card count is unchanged (still two); shell B's existing card has updated rather than a third card appearing.
+6. Quit `claude` in shells B and C and stop the server in shell A with Ctrl-C when done. The whole walkthrough has run on `127.0.0.1` only with no auth or external network calls.
+
+Acceptance checklist (one-to-one with the parent spec [002]):
+
+- [ ] Triggering the configured hook in a Claude Code session produces a card on the dashboard for that session (Step 3 + Step 4 above).
+- [ ] Two concurrent Claude Code sessions produce exactly two cards, one per session, never one card flipping between them and never duplicate cards (Step 4).
+- [ ] Each card identifies which session it represents via the session's stable 8-character identifier (Step 4).
+- [ ] Each card shows a status indicator reflecting the most recent hook event for that session (Step 4).
+- [ ] Restarting one session in the same pane and `cwd` updates the existing card rather than creating a third (Step 5).
+- [ ] The whole walkthrough runs on localhost (`127.0.0.1`) with no external network calls and no auth (Steps 1–6).
+
 ## Run
 
 ```
