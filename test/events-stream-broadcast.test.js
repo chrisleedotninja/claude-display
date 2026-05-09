@@ -99,4 +99,29 @@ describe("POST /events broadcasts over GET /events/stream", () => {
     expect(frame.status).toBe("working");
     expect(typeof frame.last_event_at).toBe("number");
   });
+
+  it("delivers two posted events to two concurrent subscribers in server-side arrival order", async () => {
+    const sub1 = await fetch(`${baseUrl}/events/stream`);
+    const sub2 = await fetch(`${baseUrl}/events/stream`);
+    expect(sub1.status).toBe(200);
+    expect(sub2.status).toBe(200);
+
+    // Wait for both subscriber controllers to register before POSTing.
+    await new Promise((r) => setTimeout(r, 50));
+
+    await postEvent(baseUrl, { id: "aaaaaaaa", id_raw: "host:pane:/a", status: "working" });
+    await postEvent(baseUrl, { id: "bbbbbbbb", id_raw: "host:pane:/b", status: "waiting" });
+
+    const [framesA, framesB] = await Promise.all([
+      readFrames(sub1, 2),
+      readFrames(sub2, 2),
+    ]);
+
+    expect(framesA.map((f) => f.id)).toEqual(["aaaaaaaa", "bbbbbbbb"]);
+    expect(framesB.map((f) => f.id)).toEqual(["aaaaaaaa", "bbbbbbbb"]);
+    expect(framesA[0].status).toBe("working");
+    expect(framesA[1].status).toBe("waiting");
+    expect(framesB[0].status).toBe("working");
+    expect(framesB[1].status).toBe("waiting");
+  });
 });
