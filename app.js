@@ -52,14 +52,16 @@ export function cardsFromState(records, now = Date.now()) {
   });
 }
 
-function Card({ id, status, repo, branch, session_label }) {
+function Card({ id, status, repo, branch, session_label, elapsed }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
+  const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
   return html`
     <div class="card">
       <div class="card-id">${id}</div>
       ${repo ? html`<div class="card-repo">${repo}</div>` : null}
       ${branch ? html`<div class="card-branch">${branch}</div>` : null}
       ${hasLabel ? html`<div class="card-session-label">${session_label}</div>` : null}
+      ${hasElapsed ? html`<div class="card-elapsed">${elapsed}</div>` : null}
       <div class="card-status">${status}</div>
     </div>
   `;
@@ -79,6 +81,7 @@ function Dashboard({ cards }) {
             repo=${c.repo}
             branch=${c.branch}
             session_label=${c.session_label}
+            elapsed=${c.elapsed}
           />`,
       )}
     </div>
@@ -86,10 +89,19 @@ function Dashboard({ cards }) {
 }
 
 export async function mount(rootEl) {
+  let records = [];
+  const draw = () => {
+    const cards = cardsFromState(records, Date.now());
+    render(html`<${Dashboard} cards=${cards} />`, rootEl);
+  };
   const res = await fetch("/api/state");
-  const records = await res.json();
-  const cards = cardsFromState(records);
-  render(html`<${Dashboard} cards=${cards} />`, rootEl);
+  records = await res.json();
+  draw();
+  // Auto-advance: re-render once per second so elapsed-time fields tick
+  // forward without requiring a new hook event. The data is unchanged; only
+  // `now` advances. See docs/decisions/0002-elapsed-time-anchor.md.
+  const interval = setInterval(draw, 1_000);
+  return () => clearInterval(interval);
 }
 
 if (typeof document !== "undefined") {
