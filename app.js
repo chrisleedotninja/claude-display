@@ -37,7 +37,7 @@ export function cardsFromState(records) {
 
 function Card({ id, status }) {
   return html`
-    <div class="card">
+    <div class="card" style=${"view-transition-name: card-" + id}>
       <div class="card-id">${id}</div>
       <div class="card-status">${status}</div>
     </div>
@@ -55,11 +55,24 @@ function Dashboard({ cards }) {
   `;
 }
 
+// Pure helper: route a render through the browser's View Transitions API
+// when available, fall back to a synchronous call otherwise. Pure so it can
+// be unit-tested with bun:test without a DOM. Returns whatever the chosen
+// path returns so callers can chain on the transition handle.
+export function withReorderTransition(viewTransitions, renderFn) {
+  if (viewTransitions && typeof viewTransitions.startViewTransition === "function") {
+    return viewTransitions.startViewTransition(renderFn);
+  }
+  return renderFn();
+}
+
 export async function mount(rootEl) {
   const res = await fetch("/api/state");
   const records = await res.json();
   const cards = cardsFromState(records);
-  render(html`<${Dashboard} cards=${cards} />`, rootEl);
+  withReorderTransition(typeof document !== "undefined" ? document : null, () =>
+    render(html`<${Dashboard} cards=${cards} />`, rootEl),
+  );
 }
 
 if (typeof document !== "undefined") {
