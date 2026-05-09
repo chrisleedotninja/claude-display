@@ -1,0 +1,9 @@
+{
+  "name": "claude-display",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.js",
+    "test": "bun test"
+  }
+}
