@@ -5,6 +5,7 @@ A localhost-only heartbeat server that records the latest status of each Claude 
 ## Run
 
 ```
+bun run vendor   # one-shot after clone: copies Preact + htm into vendor/
 bun run start
 ```
 
@@ -15,6 +16,10 @@ CLAUDE_DISPLAY_PORT=9000 bun run start
 ```
 
 The server binds only to `127.0.0.1` and is not reachable from other hosts.
+
+## Dashboard
+
+After `bun run start`, open `http://127.0.0.1:7878/` in a browser. The page renders one card per recorded session, showing its identifier and most recent status. Refresh the page to pick up new events.
 
 ## Endpoints
 
