@@ -12,8 +12,8 @@ describe("cardsFromState", () => {
       { id: "bbb22222", status: "waiting" },
     ];
     expect(cardsFromState(records)).toEqual([
-      { id: "aaa11111", status: "working" },
-      { id: "bbb22222", status: "waiting" },
+      { id: "aaa11111", status: "working", last_event_at: null },
+      { id: "bbb22222", status: "waiting", last_event_at: null },
     ]);
   });
 
