@@ -67,6 +67,9 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
           status: payload.status,
           last_event_at: Date.now(),
         };
+        if (typeof payload.desktop === "string" && payload.desktop.length > 0) {
+          record.desktop = payload.desktop;
+        }
         state.set(payload.id, record);
         return new Response(null, { status: 202 });
       }
