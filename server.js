@@ -11,6 +11,22 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+// The eight allowed status values. Settled in parent specs [001] and [004];
+// see also chore [017]. Anything outside this set is coerced to "idle" at
+// ingest so the read endpoint never surfaces an arbitrary string.
+const ALLOWED_STATUSES = Object.freeze(
+  new Set([
+    "approval",
+    "waiting",
+    "blocked",
+    "working",
+    "tests",
+    "reviewing",
+    "success",
+    "idle",
+  ]),
+);
+
 // Static paths the server serves. Enumerated explicitly — no directory
 // traversal: any GET path under /vendor/ outside this map returns 404.
 const STATIC_FILES = {
@@ -64,7 +80,7 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         const record = {
           id: payload.id,
           id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
-          status: payload.status,
+          status: ALLOWED_STATUSES.has(payload.status) ? payload.status : "idle",
           last_event_at: Date.now(),
         };
         state.set(payload.id, record);
