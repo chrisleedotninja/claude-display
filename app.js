@@ -95,6 +95,83 @@ export function nextReconnectDelay(attempt) {
   return RECONNECT_DELAYS_MS[attempt];
 }
 
+// Pure factory: live-channel wiring with auto-reconnect and re-fetch on
+// reconnect. Side-effects come from the injected collaborators
+// (`eventSource`, `fetchFn`, `scheduleTimeout`), so the reconnect/backoff/
+// re-fetch flow is unit-testable in `bun:test` without a real browser.
+//
+// Options:
+//   url          — SSE endpoint, e.g. "/events/stream"
+//   stateUrl     — full-state endpoint, e.g. "/api/state"
+//   eventSource  — function `(url) => EventSourceLike`
+//   fetchFn      — function `(url) => Promise<Response-like with .json()>`
+//   scheduleTimeout — function `(fn, ms) => void` (e.g. setTimeout)
+//   onMessage    — called per `onmessage` payload, parsed with JSON.parse
+//   onReplaceAll — called once per successful reconnect, with the records
+//                  array fetched from `stateUrl`, before any subsequent
+//                  `onMessage` is forwarded.
+//
+// Behaviour: on `onerror`, closes the current channel and schedules a
+// single reconnect with `nextReconnectDelay(attempt)`. The attempt counter
+// resets to 0 only after a successful re-fetch + new `onopen`.
+export function createLiveChannel(options) {
+  const {
+    url,
+    stateUrl,
+    eventSource,
+    fetchFn,
+    scheduleTimeout,
+    onMessage,
+    onReplaceAll,
+  } = options;
+
+  let attempt = 0;
+  let current = null;
+  let isReconnect = false;
+  // Until a reconnect's onReplaceAll has resolved we hold off forwarding
+  // any onmessage frames so the user never sees a live frame applied on
+  // top of stale state. Initial mount path does its own initial fetch
+  // outside this factory, so the first connection is treated as
+  // "already had a snapshot" — `holdMessages` starts false.
+  let holdMessages = false;
+
+  function open() {
+    const src = eventSource(url);
+    current = src;
+
+    src.onmessage = (event) => {
+      if (holdMessages) return;
+      onMessage(JSON.parse(event.data));
+    };
+
+    src.onopen = () => {
+      if (!isReconnect) return;
+      // Successful reconnect path: re-fetch full state, replace, then
+      // resume forwarding live frames and reset the attempt counter.
+      Promise.resolve()
+        .then(() => fetchFn(stateUrl))
+        .then((res) => res.json())
+        .then((records) => {
+          onReplaceAll(records);
+          attempt = 0;
+          isReconnect = false;
+          holdMessages = false;
+        });
+    };
+
+    src.onerror = () => {
+      src.close();
+      const delay = nextReconnectDelay(attempt);
+      attempt += 1;
+      isReconnect = true;
+      holdMessages = true;
+      scheduleTimeout(() => open(), delay);
+    };
+  }
+
+  open();
+}
+
 // Pure helper: route a render through the browser's View Transitions API
 // when available, fall back to a synchronous call otherwise. Pure so it can
 // be unit-tested with bun:test without a DOM. Returns whatever the chosen
