@@ -70,6 +70,16 @@ function Dashboard({ cards }) {
   `;
 }
 
+// Pure helper: named entry point for the reconnect path's
+// "replace everything from server state" semantics. Returns the same
+// view-model shape as `cardsFromState`. The reconnect flow re-fetches
+// `/api/state` and feeds the records through this helper before resuming
+// live updates; both initial mount and reconnect therefore funnel through
+// the same data-shaping function.
+export function replaceCardsFromState(records) {
+  return cardsFromState(records);
+}
+
 // Pure helper: locked reconnect schedule for the live channel.
 // Returns the delay in milliseconds before the next reconnect attempt.
 // Sequence is the chore's locked decision: [250, 500, 1000, 2000, 5000, 10000]
