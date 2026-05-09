@@ -20,11 +20,29 @@ export function cardsFromState(records) {
   });
 }
 
-function Card({ id, status }) {
+function SubagentCard({ id, status }) {
+  return html`
+    <div class="card subagent-card">
+      <div class="card-id">${id}</div>
+      <div class="card-status">${status}</div>
+    </div>
+  `;
+}
+
+function Card({ id, status, subagents }) {
+  const nested =
+    subagents && subagents.length > 0
+      ? html`
+          <div class="subagents">
+            ${subagents.map((s) => html`<${SubagentCard} id=${s.id} status=${s.status} />`)}
+          </div>
+        `
+      : null;
   return html`
     <div class="card">
       <div class="card-id">${id}</div>
       <div class="card-status">${status}</div>
+      ${nested}
     </div>
   `;
 }
@@ -35,7 +53,9 @@ function Dashboard({ cards }) {
   }
   return html`
     <div class="cards">
-      ${cards.map((c) => html`<${Card} id=${c.id} status=${c.status} />`)}
+      ${cards.map(
+        (c) => html`<${Card} id=${c.id} status=${c.status} subagents=${c.subagents} />`,
+      )}
     </div>
   `;
 }
