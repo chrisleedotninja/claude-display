@@ -7,6 +7,18 @@ import htm from "./vendor/htm.module.js";
 
 const html = htm.bind(h);
 
+// Format a duration in milliseconds as a human-friendly string in the
+// largest integer unit that fits: `Ns` for [0, 60s), `Nm` for [60s, 60m),
+// `Nh` for [60m, ∞). Floors within each unit. Negative inputs render as the
+// empty string — the caller expects "field omitted" semantics for the absent
+// case (see `cardsFromState` below).
+export function formatElapsed(ms) {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) return "";
+  if (ms < 60_000) return `${Math.floor(ms / 1_000)}s`;
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
+  return `${Math.floor(ms / 3_600_000)}h`;
+}
+
 // Pure data-shaping function: transform server `/api/state` records into the
 // minimal view-model the UI renders. Pure so it can be unit-tested with
 // bun:test without a DOM. Does not mutate its input.
