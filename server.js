@@ -23,7 +23,7 @@ const STATIC_FILES = {
 };
 
 export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
-  /** @type {Map<string, { id_raw?: string, status: string, last_event_at: number }>} */
+  /** @type {Map<string, { id_raw?: string, status: string, event_at?: number }>} */
   const state = new Map();
 
   const server = Bun.serve({
@@ -69,6 +69,17 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         ) {
           return new Response("invalid repo or branch", { status: 400 });
         }
+        // Optional event_at must be a finite positive number when present.
+        // The hook captures it at fire time as integer ms since the Unix
+        // epoch; see docs/decisions/0002-elapsed-time-anchor.md.
+        if (
+          payload.event_at !== undefined &&
+          (typeof payload.event_at !== "number" ||
+            !Number.isFinite(payload.event_at) ||
+            payload.event_at <= 0)
+        ) {
+          return new Response("invalid event_at", { status: 400 });
+        }
         const record = {
           id: payload.id,
           id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
@@ -77,10 +88,16 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
             typeof payload.session_label === "string" && payload.session_label.length > 0
               ? payload.session_label
               : undefined,
-          last_event_at: Date.now(),
         };
         if (typeof payload.repo === "string") record.repo = payload.repo;
         if (typeof payload.branch === "string") record.branch = payload.branch;
+        if (
+          typeof payload.event_at === "number" &&
+          Number.isFinite(payload.event_at) &&
+          payload.event_at > 0
+        ) {
+          record.event_at = payload.event_at;
+        }
         state.set(payload.id, record);
         return new Response(null, { status: 202 });
       }

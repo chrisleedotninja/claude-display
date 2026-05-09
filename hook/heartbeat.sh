@@ -59,14 +59,20 @@ fi
 
 url="${CLAUDE_DISPLAY_URL:-http://127.0.0.1:7878}/events"
 
+# Capture the elapsed-time anchor at fire time as integer milliseconds since
+# the Unix epoch (matches the server's prior `Date.now()` convention). The
+# hook owns this timestamp so the dashboard never has to derive it later.
+# See docs/decisions/0002-elapsed-time-anchor.md.
+event_at="$(bun -e 'process.stdout.write(String(Date.now()))')"
+
 body="$(bun -e '
-  const [id, id_raw, status, repo, branch, session_label] = process.argv.slice(1);
-  const payload = { id, id_raw, status, repo, branch };
+  const [id, id_raw, status, repo, branch, session_label, event_at] = process.argv.slice(1);
+  const payload = { id, id_raw, status, repo, branch, event_at: Number(event_at) };
   if (typeof session_label === "string" && session_label.length > 0) {
     payload.session_label = session_label;
   }
   process.stdout.write(JSON.stringify(payload));
-' "$id" "$id_raw" "active" "$repo" "$branch" "$session_label")"
+' "$id" "$id_raw" "active" "$repo" "$branch" "$session_label" "$event_at")"
 
 curl --silent --show-error \
   --max-time 1 --connect-timeout 1 \
