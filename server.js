@@ -60,5 +60,7 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
 }
 
 if (import.meta.main) {
-  // Boot block — wired up in Step 6.
+  const port = Number(process.env.CLAUDE_DISPLAY_PORT) || 7878;
+  const { server } = createServer({ port, hostname: "127.0.0.1" });
+  console.log(`claude-display listening on http://${server.hostname}:${server.port}`);
 }
