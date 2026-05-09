@@ -64,7 +64,9 @@ describe("hook posts identity", () => {
     const expectedId = sha256Prefix(expectedRaw);
     expect(records[0].id_raw).toBe(expectedRaw);
     expect(records[0].id).toBe(expectedId);
-    expect(records[0].status).toBe("active");
+    // The hook still posts "active" today (hook-side mapping ships in [020]/[021]).
+    // Per chore [017], the server now collapses any non-allow-list status to "idle".
+    expect(records[0].status).toBe("idle");
   });
 
   it("falls back to TTY when TMUX_PANE is unset", async () => {
@@ -128,6 +130,7 @@ describe("hook posts identity", () => {
     const stateRes = await fetch(`${baseUrl}/api/state`);
     const records = await stateRes.json();
     expect(records).toHaveLength(1);
-    expect(records[0].status).toBe("active");
+    // See note above: hook posts "active"; server [017] collapses to "idle".
+    expect(records[0].status).toBe("idle");
   });
 });
