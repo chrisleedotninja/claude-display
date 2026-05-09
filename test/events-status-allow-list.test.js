@@ -76,6 +76,29 @@ describe("POST /events status allow-list", () => {
     expect(records[0].status).toBe("idle");
   });
 
+  it("only exposes allow-list values on GET /api/state after a mixed sequence", async () => {
+    const post = (body) =>
+      fetch(`${baseUrl}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+    await post({ id: "valid001", id_raw: "host:pane:/a", status: "working" });
+    await post({ id: "bogus001", id_raw: "host:pane:/b", status: "lolwut" });
+    await post({ id: "valid002", id_raw: "host:pane:/c", status: "approval" });
+    await post({ id: "bogus002", id_raw: "host:pane:/d", status: "FUTURE_STATE" });
+    await post({ id: "valid003", id_raw: "host:pane:/e", status: "success" });
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    expect(stateRes.status).toBe(200);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(5);
+    for (const rec of records) {
+      expect(ALLOWED).toContain(rec.status);
+    }
+  });
+
   it("rejects a missing or non-string status with 4xx and records nothing", async () => {
     const post = (body) =>
       fetch(`${baseUrl}/events`, {
