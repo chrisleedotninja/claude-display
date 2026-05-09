@@ -14,6 +14,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 // Static paths the server serves. Enumerated explicitly — no directory
 // traversal: any GET path under /vendor/ outside this map returns 404.
 const STATIC_FILES = {
+  "/": "index.html",
+  "/index.html": "index.html",
+  "/app.js": "app.js",
+  "/styles.css": "styles.css",
   "/vendor/preact.module.js": "vendor/preact.module.js",
   "/vendor/htm.module.js": "vendor/htm.module.js",
 };
