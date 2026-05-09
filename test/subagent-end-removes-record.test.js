@@ -54,4 +54,63 @@ describe("POST /events with status=idle and parent_id removes a known subagent",
     expect(records[0].id).toBe("P1aaaaaa");
     expect(records[0].subagents).toHaveLength(0);
   });
+
+  it("leaves the parent's own scalar fields and last_event_at unchanged", async () => {
+    // Register the parent.
+    await post({ id: "P4dddddd", id_raw: "host:pane:/p4", status: "working" });
+
+    // Capture the parent's scalar fields and last_event_at after registration.
+    let records = await (await fetch(`${baseUrl}/api/state`)).json();
+    expect(records).toHaveLength(1);
+    const parentBefore = records[0];
+    const parentSnapshot = {
+      id: parentBefore.id,
+      id_raw: parentBefore.id_raw,
+      status: parentBefore.status,
+      last_event_at: parentBefore.last_event_at,
+    };
+
+    // Register a subagent under the parent. (This may or may not advance
+    // last_event_at on the parent; the assertion below is across the
+    // *end-event* delta, so capture the post-attach snapshot for comparison.)
+    await post({
+      id: "S4eeeeee",
+      id_raw: "P4dddddd:tooluse-4",
+      status: "active",
+      parent_id: "P4dddddd",
+    });
+
+    records = await (await fetch(`${baseUrl}/api/state`)).json();
+    const parentAfterAttach = records[0];
+    const snapshotAfterAttach = {
+      id: parentAfterAttach.id,
+      id_raw: parentAfterAttach.id_raw,
+      status: parentAfterAttach.status,
+      last_event_at: parentAfterAttach.last_event_at,
+    };
+
+    // Sanity baseline: parent scalar fields are still the registration values
+    // (the subagent attach should not have rewritten the parent's scalars).
+    expect(snapshotAfterAttach).toEqual(parentSnapshot);
+
+    // Fire the end event for the subagent.
+    await post({
+      id: "S4eeeeee",
+      id_raw: "P4dddddd:tooluse-4",
+      status: "idle",
+      parent_id: "P4dddddd",
+    });
+
+    records = await (await fetch(`${baseUrl}/api/state`)).json();
+    expect(records).toHaveLength(1);
+    const parentAfter = records[0];
+    expect({
+      id: parentAfter.id,
+      id_raw: parentAfter.id_raw,
+      status: parentAfter.status,
+      last_event_at: parentAfter.last_event_at,
+    }).toEqual(snapshotAfterAttach);
+    // And of course the subagent is gone.
+    expect(parentAfter.subagents).toHaveLength(0);
+  });
 });
