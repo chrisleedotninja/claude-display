@@ -17,6 +17,18 @@ describe("ADR 0002 file exists", () => {
   });
 });
 
+describe("ADR 0002 no deferred-content markers", () => {
+  const adr = readFileSync(adrPath, "utf8");
+
+  it("has no TBD / TODO / FIXME / to be decided / to be determined markers", () => {
+    const markers = ["TBD", "TODO", "FIXME", "to be decided", "to be determined"];
+    for (const marker of markers) {
+      const re = new RegExp(`\\b${marker.replace(/ /g, "\\s+")}\\b`, "i");
+      expect(adr, `expected no '${marker}' marker in ADR`).not.toMatch(re);
+    }
+  });
+});
+
 describe("ADR 0002 orphan rule", () => {
   const adr = readFileSync(adrPath, "utf8");
 
