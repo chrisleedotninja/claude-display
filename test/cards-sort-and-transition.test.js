@@ -16,3 +16,50 @@ describe("cardsFromState — last_event_at field", () => {
     ]);
   });
 });
+
+describe("cardsFromState — sort order", () => {
+  it("sorts by last_event_at descending (newest first)", () => {
+    const records = [
+      { id: "b", status: "s", last_event_at: 10 },
+      { id: "a", status: "s", last_event_at: 20 },
+    ];
+    expect(cardsFromState(records).map((c) => c.id)).toEqual(["a", "b"]);
+  });
+
+  it("breaks ties on last_event_at by id ascending lexicographically", () => {
+    const records = [
+      { id: "b", status: "s", last_event_at: 5 },
+      { id: "a", status: "s", last_event_at: 5 },
+    ];
+    expect(cardsFromState(records).map((c) => c.id)).toEqual(["a", "b"]);
+  });
+
+  it("places records with missing/null/zero last_event_at after any positive timestamp", () => {
+    const records = [
+      { id: "b", status: "s" }, // missing
+      { id: "a", status: "s", last_event_at: 5 },
+      { id: "c", status: "s", last_event_at: 0 },
+      { id: "d", status: "s", last_event_at: null },
+    ];
+    expect(cardsFromState(records).map((c) => c.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("keeps id-ascending order among records with missing/null/zero timestamps", () => {
+    const records = [
+      { id: "z", status: "s" },
+      { id: "m", status: "s", last_event_at: 0 },
+      { id: "a", status: "s", last_event_at: null },
+    ];
+    expect(cardsFromState(records).map((c) => c.id)).toEqual(["a", "m", "z"]);
+  });
+
+  it("does not mutate its input array when sorting", () => {
+    const records = [
+      { id: "b", status: "s", last_event_at: 10 },
+      { id: "a", status: "s", last_event_at: 20 },
+    ];
+    const snapshot = JSON.parse(JSON.stringify(records));
+    cardsFromState(records);
+    expect(records).toEqual(snapshot);
+  });
+});
