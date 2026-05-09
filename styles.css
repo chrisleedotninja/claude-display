@@ -48,6 +48,11 @@ body {
   font-size: 13px;
 }
 
+.card-desktop {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .card-status {
   color: var(--accent);
   font-weight: 500;
