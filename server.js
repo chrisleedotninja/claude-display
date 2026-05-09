@@ -26,6 +26,10 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
   /** @type {Map<string, { id_raw?: string, status: string, last_event_at: number }>} */
   const state = new Map();
 
+  /** @type {Set<ReadableStreamDefaultController>} */
+  const subscribers = new Set();
+  const sseEncoder = new TextEncoder();
+
   const server = Bun.serve({
     port,
     hostname,
@@ -38,16 +42,18 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
       }
 
       if (req.method === "GET" && url.pathname === "/events/stream") {
-        const encoder = new TextEncoder();
+        let registered;
         const stream = new ReadableStream({
           start(controller) {
             // Flush an initial SSE comment so the client sees the response
             // headers and the channel is observably open. The colon-prefix is
             // an SSE comment per the spec — clients ignore it.
-            controller.enqueue(encoder.encode(":\n\n"));
+            controller.enqueue(sseEncoder.encode(":\n\n"));
+            registered = controller;
+            subscribers.add(controller);
           },
           cancel() {
-            // Client closed the connection; nothing to clean up yet.
+            if (registered) subscribers.delete(registered);
           },
         });
         return new Response(stream, {
@@ -91,6 +97,21 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
           last_event_at: Date.now(),
         };
         state.set(payload.id, record);
+
+        // Broadcast synchronously to every connected SSE subscriber, in
+        // insertion order, before responding. This is what guarantees that
+        // every subscriber sees events in the same order — server-side
+        // arrival order is the iteration order through `subscribers`.
+        const frame = sseEncoder.encode(`data: ${JSON.stringify(record)}\n\n`);
+        for (const controller of subscribers) {
+          try {
+            controller.enqueue(frame);
+          } catch {
+            // Subscriber's stream is no longer accepting writes; drop it.
+            subscribers.delete(controller);
+          }
+        }
+
         return new Response(null, { status: 202 });
       }
 
