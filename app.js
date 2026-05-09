@@ -10,12 +10,29 @@ const html = htm.bind(h);
 // Pure data-shaping function: transform server `/api/state` records into the
 // minimal view-model the UI renders. Pure so it can be unit-tested with
 // bun:test without a DOM. Does not mutate its input.
+//
+// Order: most-recent-first by `last_event_at` (descending), with `id`
+// ascending as the stable tiebreaker. Records whose `last_event_at` is
+// missing, null, or 0 sort after every record with a positive timestamp;
+// among themselves they remain in `id`-ascending order.
 export function cardsFromState(records) {
-  return records.map((r) => ({
-    id: r.id,
-    status: r.status,
-    last_event_at: r.last_event_at ? r.last_event_at : null,
-  }));
+  return records
+    .map((r) => ({
+      id: r.id,
+      status: r.status,
+      last_event_at: r.last_event_at ? r.last_event_at : null,
+    }))
+    .sort((a, b) => {
+      const aHas = a.last_event_at != null && a.last_event_at > 0;
+      const bHas = b.last_event_at != null && b.last_event_at > 0;
+      if (aHas && bHas) {
+        if (b.last_event_at !== a.last_event_at) return b.last_event_at - a.last_event_at;
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      }
+      if (aHas) return -1;
+      if (bHas) return 1;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
 }
 
 function Card({ id, status }) {
