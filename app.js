@@ -11,7 +11,11 @@ const html = htm.bind(h);
 // minimal view-model the UI renders. Pure so it can be unit-tested with
 // bun:test without a DOM. Does not mutate its input.
 export function cardsFromState(records) {
-  return records.map((r) => ({ id: r.id, status: r.status }));
+  return records.map((r) => ({
+    id: r.id,
+    status: r.status,
+    last_event_at: r.last_event_at ? r.last_event_at : null,
+  }));
 }
 
 function Card({ id, status }) {
