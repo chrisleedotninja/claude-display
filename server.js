@@ -61,12 +61,22 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         ) {
           return new Response("missing required fields", { status: 400 });
         }
+        // Optional repo/branch must be strings when present. Absent or empty
+        // is fine — the dashboard renders nothing rather than a placeholder.
+        if (
+          (payload.repo !== undefined && typeof payload.repo !== "string") ||
+          (payload.branch !== undefined && typeof payload.branch !== "string")
+        ) {
+          return new Response("invalid repo or branch", { status: 400 });
+        }
         const record = {
           id: payload.id,
           id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
           status: payload.status,
           last_event_at: Date.now(),
         };
+        if (typeof payload.repo === "string") record.repo = payload.repo;
+        if (typeof payload.branch === "string") record.branch = payload.branch;
         state.set(payload.id, record);
         return new Response(null, { status: 202 });
       }

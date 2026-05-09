@@ -28,12 +28,31 @@ pane_or_tty="${TMUX_PANE:-${TTY:-PPID-$PPID}}"
 id_raw="${HOSTNAME}:${pane_or_tty}:${cwd}"
 id="$(printf '%s' "$id_raw" | shasum -a 256 | cut -c1-8)"
 
+# Derive repo (basename of git toplevel) and branch from cwd. Both are empty
+# when cwd is not inside a git repo or git is unavailable — never a placeholder
+# like "unknown" (the dashboard renders nothing in that case). git's stderr is
+# suppressed so a missing/unhelpful git invocation never noises up the hook.
+repo=""
+branch=""
+if [ -n "$cwd" ]; then
+  toplevel="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [ -n "$toplevel" ]; then
+    repo="$(basename "$toplevel")"
+    branch="$(git -C "$cwd" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    # "HEAD" indicates a detached HEAD without a named ref — emit empty rather
+    # than a literal "HEAD" placeholder, consistent with the empty-fallback rule.
+    if [ "$branch" = "HEAD" ]; then
+      branch=""
+    fi
+  fi
+fi
+
 url="${CLAUDE_DISPLAY_URL:-http://127.0.0.1:7878}/events"
 
 body="$(bun -e '
-  const [id, id_raw, status] = process.argv.slice(1);
-  process.stdout.write(JSON.stringify({ id, id_raw, status }));
-' "$id" "$id_raw" "active")"
+  const [id, id_raw, status, repo, branch] = process.argv.slice(1);
+  process.stdout.write(JSON.stringify({ id, id_raw, status, repo, branch }));
+' "$id" "$id_raw" "active" "$repo" "$branch")"
 
 curl --silent --show-error \
   --max-time 1 --connect-timeout 1 \
