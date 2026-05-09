@@ -66,4 +66,26 @@ describe("hook posts identity", () => {
     expect(records[0].id).toBe(expectedId);
     expect(records[0].status).toBe("active");
   });
+
+  it("falls back to TTY when TMUX_PANE is unset", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TTY: "/dev/ttys009",
+      CLAUDE_DISPLAY_URL: baseUrl,
+    };
+
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({ cwd: "/x" }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    const expectedRaw = "hostA:/dev/ttys009:/x";
+    expect(records[0].id_raw).toBe(expectedRaw);
+    expect(records[0].id).toBe(sha256Prefix(expectedRaw));
+  });
 });
