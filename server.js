@@ -37,6 +37,29 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         return Response.json(records);
       }
 
+      if (req.method === "GET" && url.pathname === "/events/stream") {
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          start(controller) {
+            // Flush an initial SSE comment so the client sees the response
+            // headers and the channel is observably open. The colon-prefix is
+            // an SSE comment per the spec — clients ignore it.
+            controller.enqueue(encoder.encode(":\n\n"));
+          },
+          cancel() {
+            // Client closed the connection; nothing to clean up yet.
+          },
+        });
+        return new Response(stream, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        });
+      }
+
       if (req.method === "GET" && Object.hasOwn(STATIC_FILES, url.pathname)) {
         const file = Bun.file(join(here, STATIC_FILES[url.pathname]));
         if (await file.exists()) {
