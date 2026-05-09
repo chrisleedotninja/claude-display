@@ -61,6 +61,16 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         ) {
           return new Response("missing required fields", { status: 400 });
         }
+        // Optional `parent_id` (subagent linkage, ADR 0002): when present, it
+        // must be a non-empty string. Wrong-type values are 4xx with no state
+        // mutation. Absence is still legal — top-level events have no
+        // parent_id at all.
+        if (
+          Object.hasOwn(payload, "parent_id") &&
+          (typeof payload.parent_id !== "string" || payload.parent_id.length === 0)
+        ) {
+          return new Response("invalid parent_id", { status: 400 });
+        }
         const record = {
           id: payload.id,
           id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
