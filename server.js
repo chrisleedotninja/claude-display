@@ -21,6 +21,32 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         return Response.json(records);
       }
 
+      if (req.method === "POST" && url.pathname === "/events") {
+        let payload;
+        try {
+          payload = await req.json();
+        } catch {
+          return new Response("invalid json", { status: 400 });
+        }
+        if (
+          !payload ||
+          typeof payload.id !== "string" ||
+          typeof payload.status !== "string" ||
+          payload.id.length === 0 ||
+          payload.status.length === 0
+        ) {
+          return new Response("missing required fields", { status: 400 });
+        }
+        const record = {
+          id: payload.id,
+          id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
+          status: payload.status,
+          last_event_at: Date.now(),
+        };
+        state.set(payload.id, record);
+        return new Response(null, { status: 202 });
+      }
+
       return new Response("not found", { status: 404 });
     },
   });
