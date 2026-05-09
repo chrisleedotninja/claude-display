@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { nextReconnectDelay } from "../app.js";
+import { nextReconnectDelay, replaceCardsFromState, cardsFromState } from "../app.js";
 
 describe("nextReconnectDelay — locked schedule", () => {
   it("returns 250 ms for attempt 0", () => {
@@ -25,5 +25,30 @@ describe("nextReconnectDelay — locked schedule", () => {
       expect(d).toBeGreaterThanOrEqual(prev);
       prev = d;
     }
+  });
+});
+
+describe("replaceCardsFromState — reconnect-path entry point", () => {
+  it("returns the same view-model array as cardsFromState for the same input", () => {
+    const records = [
+      { id: "b", status: "working", last_event_at: 10 },
+      { id: "a", status: "idle", last_event_at: 20 },
+      { id: "c", status: "done" },
+    ];
+    expect(replaceCardsFromState(records)).toEqual(cardsFromState(records));
+  });
+
+  it("returns an empty array for an empty input", () => {
+    expect(replaceCardsFromState([])).toEqual([]);
+  });
+
+  it("does not mutate its input array", () => {
+    const records = [
+      { id: "b", status: "s", last_event_at: 10 },
+      { id: "a", status: "s", last_event_at: 20 },
+    ];
+    const snapshot = JSON.parse(JSON.stringify(records));
+    replaceCardsFromState(records);
+    expect(records).toEqual(snapshot);
   });
 });
