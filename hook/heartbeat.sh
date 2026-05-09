@@ -28,12 +28,26 @@ pane_or_tty="${TMUX_PANE:-${TTY:-PPID-$PPID}}"
 id_raw="${HOSTNAME}:${pane_or_tty}:${cwd}"
 id="$(printf '%s' "$id_raw" | shasum -a 256 | cut -c1-8)"
 
+# Capture a human-readable session label at fire time so the dashboard never
+# shells out to tmux/cmux when rendering. Prefer tmux's own `display-message`
+# when running inside tmux; fall back to a CMUX_* env hint when not.
+session_label=""
+if [ -n "${TMUX_PANE:-}" ]; then
+  session_label="$(tmux display-message -p -t "$TMUX_PANE" '#S' 2>/dev/null || true)"
+elif [ -n "${CMUX_WORKSPACE_NAME:-}" ]; then
+  session_label="$CMUX_WORKSPACE_NAME"
+fi
+
 url="${CLAUDE_DISPLAY_URL:-http://127.0.0.1:7878}/events"
 
 body="$(bun -e '
-  const [id, id_raw, status] = process.argv.slice(1);
-  process.stdout.write(JSON.stringify({ id, id_raw, status }));
-' "$id" "$id_raw" "active")"
+  const [id, id_raw, status, session_label] = process.argv.slice(1);
+  const payload = { id, id_raw, status };
+  if (typeof session_label === "string" && session_label.length > 0) {
+    payload.session_label = session_label;
+  }
+  process.stdout.write(JSON.stringify(payload));
+' "$id" "$id_raw" "active" "$session_label")"
 
 curl --silent --show-error \
   --max-time 1 --connect-timeout 1 \
