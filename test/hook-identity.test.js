@@ -88,4 +88,26 @@ describe("hook posts identity", () => {
     expect(records[0].id_raw).toBe(expectedRaw);
     expect(records[0].id).toBe(sha256Prefix(expectedRaw));
   });
+
+  it("falls back to PPID-N when both TMUX_PANE and TTY are unset", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      CLAUDE_DISPLAY_URL: baseUrl,
+    };
+    // explicitly no TMUX_PANE, no TTY
+
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({ cwd: "/y" }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].id_raw).toMatch(/^hostA:PPID-\d+:\/y$/);
+    expect(records[0].id).toBeString();
+    expect(records[0].id.length).toBeGreaterThan(0);
+  });
 });
