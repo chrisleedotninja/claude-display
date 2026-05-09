@@ -78,6 +78,21 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         ) {
           return new Response("invalid parent_id", { status: 400 });
         }
+        // End-event branch (ADR 0002, [020]): when `parent_id` is present and
+        // `status === "idle"`, the event is a SubagentStop signal — remove the
+        // subagent record from the named parent rather than upserting. Orphan
+        // posture for end events is "tolerated, no state mutation": if either
+        // the parent or the subagent is unknown, the call is a no-op.
+        if (
+          typeof payload.parent_id === "string" &&
+          payload.status === "idle"
+        ) {
+          const parent = state.get(payload.parent_id);
+          if (parent) {
+            parent.subagents.delete(payload.id);
+          }
+          return new Response(null, { status: 202 });
+        }
         const now = Date.now();
         const subagentRecord = {
           id: payload.id,
