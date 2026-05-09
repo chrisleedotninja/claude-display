@@ -52,8 +52,20 @@ function Dashboard({ cards }) {
 export async function mount(rootEl) {
   const res = await fetch("/api/state");
   const records = await res.json();
-  const cards = cardsFromState(records);
+  let cards = cardsFromState(records);
   render(html`<${Dashboard} cards=${cards} />`, rootEl);
+
+  // Open the live channel. EventSource is a browser primitive; in non-DOM
+  // environments (e.g. unit tests of cardsFromState) `mount` isn't called.
+  // No custom onerror reconnect policy — recovery is sister slice [016].
+  if (typeof EventSource !== "undefined") {
+    const source = new EventSource("/events/stream");
+    source.onmessage = (event) => {
+      const record = JSON.parse(event.data);
+      cards = applyEventToCards(cards, record);
+      render(html`<${Dashboard} cards=${cards} />`, rootEl);
+    };
+  }
 }
 
 if (typeof document !== "undefined") {
