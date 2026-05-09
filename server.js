@@ -33,7 +33,14 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
       const url = new URL(req.url);
 
       if (req.method === "GET" && url.pathname === "/api/state") {
-        const records = Array.from(state.values());
+        // Materialize each record's subagents Map as an array on the wire.
+        // The internal storage uses a Map for replace-on-duplicate semantics;
+        // the JSON shape is a plain array so existing consumers see a stable
+        // top-level record shape with an additive `subagents` array.
+        const records = Array.from(state.values()).map((rec) => ({
+          ...rec,
+          subagents: Array.from(rec.subagents.values()),
+        }));
         return Response.json(records);
       }
 
@@ -71,11 +78,28 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         ) {
           return new Response("invalid parent_id", { status: 400 });
         }
-        const record = {
+        const now = Date.now();
+        const subagentRecord = {
           id: payload.id,
           id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
           status: payload.status,
-          last_event_at: Date.now(),
+          last_event_at: now,
+        };
+        // Subagent linkage: if the event names a known parent, nest under it
+        // and do not create a top-level slot for the subagent. Orphan handling
+        // (parent_id present but unknown) is locked separately by ADR 0002 and
+        // covered by a later step.
+        if (typeof payload.parent_id === "string" && state.has(payload.parent_id)) {
+          const parent = state.get(payload.parent_id);
+          parent.subagents.set(payload.id, subagentRecord);
+          return new Response(null, { status: 202 });
+        }
+        const record = {
+          id: payload.id,
+          id_raw: subagentRecord.id_raw,
+          status: payload.status,
+          last_event_at: now,
+          subagents: state.get(payload.id)?.subagents ?? new Map(),
         };
         state.set(payload.id, record);
         return new Response(null, { status: 202 });
