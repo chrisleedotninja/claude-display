@@ -20,10 +20,12 @@ export function cardsFromState(records) {
   });
 }
 
-function Card({ id, status }) {
+function Card({ id, status, session_label }) {
+  const hasLabel = typeof session_label === "string" && session_label.length > 0;
   return html`
     <div class="card">
       <div class="card-id">${id}</div>
+      ${hasLabel ? html`<div class="card-session-label">${session_label}</div>` : null}
       <div class="card-status">${status}</div>
     </div>
   `;
@@ -35,7 +37,10 @@ function Dashboard({ cards }) {
   }
   return html`
     <div class="cards">
-      ${cards.map((c) => html`<${Card} id=${c.id} status=${c.status} />`)}
+      ${cards.map(
+        (c) =>
+          html`<${Card} id=${c.id} status=${c.status} session_label=${c.session_label} />`,
+      )}
     </div>
   `;
 }
