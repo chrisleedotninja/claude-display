@@ -74,4 +74,22 @@ describe("dashboard static routes", () => {
     const res = await fetch(`${baseUrl}/nonsense`);
     expect(res.status).toBe(404);
   });
+
+  it("served /app.js imports Preact and htm from /vendor/, references cardsFromState and the root mount", async () => {
+    const res = await fetch(`${baseUrl}/app.js`);
+    const body = await res.text();
+    expect(body.includes("/vendor/preact.module.js")).toBe(true);
+    expect(body.includes("/vendor/htm.module.js")).toBe(true);
+    expect(body.includes("cardsFromState")).toBe(true);
+    expect(body.includes("getElementById('root')") || body.includes('getElementById("root")')).toBe(
+      true,
+    );
+  });
+
+  it("served /styles.css carries the locked silhouette: .card class and a system-font stack", async () => {
+    const res = await fetch(`${baseUrl}/styles.css`);
+    const body = await res.text();
+    expect(/\.card\b/.test(body)).toBe(true);
+    expect(body.includes("-apple-system")).toBe(true);
+  });
 });
