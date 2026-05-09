@@ -17,6 +17,37 @@ describe("ADR 0002 file exists", () => {
   });
 });
 
+describe("ADR 0002 parent_id and subagent id", () => {
+  const adr = readFileSync(adrPath, "utf8");
+
+  it("names `parent_id` as the payload field carrying the parent instance's identifier", () => {
+    expect(adr).toMatch(/`parent_id`/);
+  });
+
+  it("derives `parent_id` identically to ADR 0001's identity hash", () => {
+    // Must contain the literal derivation expression from [011]/ADR-0001.
+    expect(adr).toContain("HOSTNAME");
+    expect(adr).toContain("TMUX_PANE");
+    expect(adr).toContain("TTY");
+    expect(adr).toContain("PPID");
+    expect(adr).toContain("cwd");
+    // The 8-char SHA-256 prefix shape.
+    expect(adr).toMatch(/sha256[\s\S]{0,200}?\[0:8\]/i);
+  });
+
+  it("states the derivation runs in the subagent's process", () => {
+    expect(adr).toMatch(/subagent['s ]+process/i);
+  });
+
+  it("names the subagent's own id as sha256(parent_id:parent_tool_use_id)[0:8]", () => {
+    expect(adr).toMatch(/id\s*=\s*sha256\("?\$?\{?parent_id\}?:\$?\{?parent_tool_use_id\}?"?\)\[0:8\]/);
+  });
+
+  it("names the subagent's `id_raw` as parent_id:parent_tool_use_id", () => {
+    expect(adr).toMatch(/id_raw\s*=\s*"?\$?\{?parent_id\}?:\$?\{?parent_tool_use_id\}?"?/);
+  });
+});
+
 describe("ADR 0002 end event", () => {
   const adr = readFileSync(adrPath, "utf8");
 
