@@ -75,4 +75,30 @@ describe("POST /events status allow-list", () => {
     expect(records[0].id).toBe("lol12345");
     expect(records[0].status).toBe("idle");
   });
+
+  it("rejects a missing or non-string status with 4xx and records nothing", async () => {
+    const post = (body) =>
+      fetch(`${baseUrl}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+    const missing = await post({ id: "miss0001", id_raw: "host:pane:/m" });
+    expect(missing.status).toBeGreaterThanOrEqual(400);
+    expect(missing.status).toBeLessThan(500);
+
+    const numeric = await post({ id: "num00001", id_raw: "host:pane:/n", status: 42 });
+    expect(numeric.status).toBeGreaterThanOrEqual(400);
+    expect(numeric.status).toBeLessThan(500);
+
+    const nullish = await post({ id: "nul00001", id_raw: "host:pane:/x", status: null });
+    expect(nullish.status).toBeGreaterThanOrEqual(400);
+    expect(nullish.status).toBeLessThan(500);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    expect(stateRes.status).toBe(200);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(0);
+  });
 });
