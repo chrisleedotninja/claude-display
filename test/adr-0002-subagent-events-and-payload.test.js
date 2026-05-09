@@ -17,6 +17,31 @@ describe("ADR 0002 file exists", () => {
   });
 });
 
+describe("ADR 0002 orphan rule", () => {
+  const adr = readFileSync(adrPath, "utf8");
+
+  it("identifies the three options (top-level, drop, buffer) explicitly", () => {
+    expect(adr).toMatch(/top[- ]level/i);
+    expect(adr).toMatch(/\bdrop(s|ped|ping|\b)/i);
+    expect(adr).toMatch(/\bbuffer(s|ed|ing|\b)/i);
+  });
+
+  it("locks the choice as render at top level (option (a))", () => {
+    // The chosen line must explicitly cite top-level rendering as the chosen option.
+    expect(adr).toMatch(/Chosen:\s*\*?\*?A\*?\*?[\s\S]{0,200}?top[- ]level/i);
+  });
+
+  it("ties rationale to ADR 0001's in-memory-server constraint", () => {
+    expect(adr).toMatch(/in[- ]memory/i);
+    expect(adr).toMatch(/ADR\s*0001|0001/);
+  });
+
+  it("ties rationale to [007]'s `subagent without a known parent does not crash` AC", () => {
+    expect(adr).toMatch(/\[007\]/);
+    expect(adr).toMatch(/(does\s+not\s+crash|without\s+(?:a\s+)?known\s+parent)/i);
+  });
+});
+
 describe("ADR 0002 parent_id and subagent id", () => {
   const adr = readFileSync(adrPath, "utf8");
 
