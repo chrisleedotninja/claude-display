@@ -70,6 +70,21 @@ function Dashboard({ cards }) {
   `;
 }
 
+// Pure helper: locked reconnect schedule for the live channel.
+// Returns the delay in milliseconds before the next reconnect attempt.
+// Sequence is the chore's locked decision: [250, 500, 1000, 2000, 5000, 10000]
+// for attempts 0..5, then 10000 ms for every further attempt — caps the
+// retry cadence at ~6/min so a long-down server does not produce a tight
+// loop of failing requests.
+const RECONNECT_DELAYS_MS = [250, 500, 1000, 2000, 5000, 10000];
+export function nextReconnectDelay(attempt) {
+  if (attempt < 0) return RECONNECT_DELAYS_MS[0];
+  if (attempt >= RECONNECT_DELAYS_MS.length - 1) {
+    return RECONNECT_DELAYS_MS[RECONNECT_DELAYS_MS.length - 1];
+  }
+  return RECONNECT_DELAYS_MS[attempt];
+}
+
 // Pure helper: route a render through the browser's View Transitions API
 // when available, fall back to a synchronous call otherwise. Pure so it can
 // be unit-tested with bun:test without a DOM. Returns whatever the chosen
