@@ -55,4 +55,24 @@ describe("POST /events status allow-list", () => {
       expect(rec.status).toBe(status);
     }
   });
+
+  it("collapses an out-of-list status to idle and accepts the event", async () => {
+    const postRes = await fetch(`${baseUrl}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: "lol12345",
+        id_raw: "host:pane:/lolwut",
+        status: "lolwut",
+      }),
+    });
+    expect([200, 202]).toContain(postRes.status);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    expect(stateRes.status).toBe(200);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].id).toBe("lol12345");
+    expect(records[0].status).toBe("idle");
+  });
 });
