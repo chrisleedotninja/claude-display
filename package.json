@@ -1,0 +1,10 @@
+{
+  "name": "claude-display",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.js",
+    "test": "bun test",
+    "vendor": "bash -c 'set -euo pipefail; tmp=$(mktemp -d); trap \"rm -rf \\\"$tmp\\\"\" EXIT; (cd \"$tmp\" && bun init -y >/dev/null && bun add preact@10 htm@3 >/dev/null); mkdir -p vendor; cp \"$tmp/node_modules/preact/dist/preact.module.js\" vendor/preact.module.js; cp \"$tmp/node_modules/htm/dist/htm.module.js\" vendor/htm.module.js; echo \"vendored preact and htm into vendor/\"'"
+  }
+}
