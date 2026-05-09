@@ -11,6 +11,22 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+// The eight allowed status values. Settled in parent specs [001] and [004];
+// see also chore [017]. Anything outside this set is coerced to "idle" at
+// ingest so the read endpoint never surfaces an arbitrary string.
+const ALLOWED_STATUSES = Object.freeze(
+  new Set([
+    "approval",
+    "waiting",
+    "blocked",
+    "working",
+    "tests",
+    "reviewing",
+    "success",
+    "idle",
+  ]),
+);
+
 // Static paths the server serves. Enumerated explicitly — no directory
 // traversal: any GET path under /vendor/ outside this map returns 404.
 const STATIC_FILES = {
