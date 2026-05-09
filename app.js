@@ -16,20 +16,28 @@ const html = htm.bind(h);
 // element entirely rather than substituting a placeholder. (See chore [022] /
 // AC2: never `unknown` or `-` for missing repo/branch.)
 export function cardsFromState(records) {
-  return records.map((r) => ({
-    id: r.id,
-    status: r.status,
-    repo: typeof r.repo === "string" ? r.repo : "",
-    branch: typeof r.branch === "string" ? r.branch : "",
-  }));
+  return records.map((r) => {
+    const card = {
+      id: r.id,
+      status: r.status,
+      repo: typeof r.repo === "string" ? r.repo : "",
+      branch: typeof r.branch === "string" ? r.branch : "",
+    };
+    if (typeof r.session_label === "string" && r.session_label.length > 0) {
+      card.session_label = r.session_label;
+    }
+    return card;
+  });
 }
 
-function Card({ id, status, repo, branch }) {
+function Card({ id, status, repo, branch, session_label }) {
+  const hasLabel = typeof session_label === "string" && session_label.length > 0;
   return html`
     <div class="card">
       <div class="card-id">${id}</div>
       ${repo ? html`<div class="card-repo">${repo}</div>` : null}
       ${branch ? html`<div class="card-branch">${branch}</div>` : null}
+      ${hasLabel ? html`<div class="card-session-label">${session_label}</div>` : null}
       <div class="card-status">${status}</div>
     </div>
   `;
@@ -42,7 +50,14 @@ function Dashboard({ cards }) {
   return html`
     <div class="cards">
       ${cards.map(
-        (c) => html`<${Card} id=${c.id} status=${c.status} repo=${c.repo} branch=${c.branch} />`,
+        (c) =>
+          html`<${Card}
+            id=${c.id}
+            status=${c.status}
+            repo=${c.repo}
+            branch=${c.branch}
+            session_label=${c.session_label}
+          />`,
       )}
     </div>
   `;

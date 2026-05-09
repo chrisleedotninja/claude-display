@@ -47,12 +47,26 @@ if [ -n "$cwd" ]; then
   fi
 fi
 
+# Capture a human-readable session label at fire time so the dashboard never
+# shells out to tmux/cmux when rendering. Prefer tmux's own `display-message`
+# when running inside tmux; fall back to a CMUX_* env hint when not.
+session_label=""
+if [ -n "${TMUX_PANE:-}" ]; then
+  session_label="$(tmux display-message -p -t "$TMUX_PANE" '#S' 2>/dev/null || true)"
+elif [ -n "${CMUX_WORKSPACE_NAME:-}" ]; then
+  session_label="$CMUX_WORKSPACE_NAME"
+fi
+
 url="${CLAUDE_DISPLAY_URL:-http://127.0.0.1:7878}/events"
 
 body="$(bun -e '
-  const [id, id_raw, status, repo, branch] = process.argv.slice(1);
-  process.stdout.write(JSON.stringify({ id, id_raw, status, repo, branch }));
-' "$id" "$id_raw" "active" "$repo" "$branch")"
+  const [id, id_raw, status, repo, branch, session_label] = process.argv.slice(1);
+  const payload = { id, id_raw, status, repo, branch };
+  if (typeof session_label === "string" && session_label.length > 0) {
+    payload.session_label = session_label;
+  }
+  process.stdout.write(JSON.stringify(payload));
+' "$id" "$id_raw" "active" "$repo" "$branch" "$session_label")"
 
 curl --silent --show-error \
   --max-time 1 --connect-timeout 1 \
