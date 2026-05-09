@@ -80,7 +80,7 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         const record = {
           id: payload.id,
           id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
-          status: payload.status,
+          status: ALLOWED_STATUSES.has(payload.status) ? payload.status : "idle",
           last_event_at: Date.now(),
         };
         state.set(payload.id, record);
