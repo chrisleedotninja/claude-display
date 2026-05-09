@@ -17,6 +17,25 @@ describe("ADR 0002 file exists", () => {
   });
 });
 
+describe("ADR 0002 end event", () => {
+  const adr = readFileSync(adrPath, "utf8");
+
+  it("names `SubagentStop` as the Claude Code hook event marking subagent finished", () => {
+    expect(adr).toMatch(/SubagentStop/);
+    // Must be paired with a "finished" / "end" / "stop" semantic phrasing.
+    expect(adr).toMatch(/SubagentStop[\s\S]{0,300}?(finish|end|stop|completes?|done)/i);
+  });
+
+  it("rejects the timeout-based alternative explicitly", () => {
+    expect(adr).toMatch(/timeout/i);
+  });
+
+  it("rejects the main-agent-`Stop`-based alternative explicitly", () => {
+    // Match phrases like "main agent's Stop", "main-agent Stop", "Stop hook of the main agent", "parent's Stop", etc.
+    expect(adr).toMatch(/(main[ -]agent|parent)[\s\S]{0,80}?\bStop\b|\bStop\b[\s\S]{0,80}?(main[ -]agent|parent)/);
+  });
+});
+
 describe("ADR 0002 activity event set", () => {
   const adr = readFileSync(adrPath, "utf8");
 
