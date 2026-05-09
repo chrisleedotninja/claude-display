@@ -187,22 +187,32 @@ export async function mount(rootEl) {
   const res = await fetch("/api/state");
   const records = await res.json();
   let cards = cardsFromState(records);
-  withReorderTransition(typeof document !== "undefined" ? document : null, () =>
-    render(html`<${Dashboard} cards=${cards} />`, rootEl),
-  );
+  const renderNow = () =>
+    withReorderTransition(typeof document !== "undefined" ? document : null, () =>
+      render(html`<${Dashboard} cards=${cards} />`, rootEl),
+    );
+  renderNow();
 
-  // Open the live channel. EventSource is a browser primitive; in non-DOM
-  // environments (e.g. unit tests of cardsFromState) `mount` isn't called.
-  // No custom onerror reconnect policy — recovery is sister slice [016].
+  // Open the live channel through the injectable factory so the
+  // reconnect/backoff/re-fetch flow is exercised by `mount` exactly as it
+  // is in the unit tests. EventSource is a browser primitive; in non-DOM
+  // environments (e.g. unit tests of pure helpers) `mount` isn't called.
   if (typeof EventSource !== "undefined") {
-    const source = new EventSource("/events/stream");
-    source.onmessage = (event) => {
-      const record = JSON.parse(event.data);
-      cards = applyEventToCards(cards, record);
-      withReorderTransition(typeof document !== "undefined" ? document : null, () =>
-        render(html`<${Dashboard} cards=${cards} />`, rootEl),
-      );
-    };
+    createLiveChannel({
+      url: "/events/stream",
+      stateUrl: "/api/state",
+      eventSource: (u) => new EventSource(u),
+      fetchFn: (u) => fetch(u),
+      scheduleTimeout: (fn, ms) => setTimeout(fn, ms),
+      onMessage: (record) => {
+        cards = applyEventToCards(cards, record);
+        renderNow();
+      },
+      onReplaceAll: (records) => {
+        cards = replaceCardsFromState(records);
+        renderNow();
+      },
+    });
   }
 }
 
