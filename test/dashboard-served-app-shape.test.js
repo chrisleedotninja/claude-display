@@ -19,4 +19,23 @@ describe("served /app.js shape — keyed render and view-transition wiring", () 
     const body = await res.text();
     expect(/key=\$\{[^}]*id[^}]*\}/.test(body)).toBe(true);
   });
+
+  it("references the withReorderTransition helper", async () => {
+    const res = await fetch(`${baseUrl}/app.js`);
+    const body = await res.text();
+    expect(body.includes("withReorderTransition")).toBe(true);
+  });
+
+  it("references the View Transitions API method startViewTransition", async () => {
+    const res = await fetch(`${baseUrl}/app.js`);
+    const body = await res.text();
+    expect(body.includes("startViewTransition")).toBe(true);
+  });
+
+  it("sets a per-card view-transition-name on the Card markup", async () => {
+    const res = await fetch(`${baseUrl}/app.js`);
+    const body = await res.text();
+    expect(body.includes("view-transition-name: card-")).toBe(true);
+    expect(body.includes("style=")).toBe(true);
+  });
 });

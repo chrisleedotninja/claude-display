@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { cardsFromState } from "../app.js";
+import { cardsFromState, withReorderTransition } from "../app.js";
 
 describe("cardsFromState — last_event_at field", () => {
   it("includes last_event_at on each view-model when the source record carries it", () => {
@@ -61,5 +61,50 @@ describe("cardsFromState — sort order", () => {
     const snapshot = JSON.parse(JSON.stringify(records));
     cardsFromState(records);
     expect(records).toEqual(snapshot);
+  });
+});
+
+describe("withReorderTransition", () => {
+  it("invokes renderFn directly and returns its result when viewTransitions is null", () => {
+    let calls = 0;
+    const renderFn = () => {
+      calls++;
+      return "rendered";
+    };
+    const result = withReorderTransition(null, renderFn);
+    expect(calls).toBe(1);
+    expect(result).toBe("rendered");
+  });
+
+  it("invokes renderFn directly when viewTransitions has no startViewTransition method", () => {
+    let calls = 0;
+    const renderFn = () => {
+      calls++;
+      return "rendered";
+    };
+    const result = withReorderTransition({}, renderFn);
+    expect(calls).toBe(1);
+    expect(result).toBe("rendered");
+  });
+
+  it("invokes startViewTransition with renderFn when the method exists, and does not call renderFn directly", () => {
+    let renderCalls = 0;
+    const renderFn = () => {
+      renderCalls++;
+    };
+    let receivedFn = null;
+    let spyCalls = 0;
+    const viewTransitions = {
+      startViewTransition(fn) {
+        spyCalls++;
+        receivedFn = fn;
+        return "transition-handle";
+      },
+    };
+    const result = withReorderTransition(viewTransitions, renderFn);
+    expect(spyCalls).toBe(1);
+    expect(receivedFn).toBe(renderFn);
+    expect(renderCalls).toBe(0);
+    expect(result).toBe("transition-handle");
   });
 });
