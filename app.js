@@ -70,6 +70,108 @@ function Dashboard({ cards }) {
   `;
 }
 
+// Pure helper: named entry point for the reconnect path's
+// "replace everything from server state" semantics. Returns the same
+// view-model shape as `cardsFromState`. The reconnect flow re-fetches
+// `/api/state` and feeds the records through this helper before resuming
+// live updates; both initial mount and reconnect therefore funnel through
+// the same data-shaping function.
+export function replaceCardsFromState(records) {
+  return cardsFromState(records);
+}
+
+// Pure helper: locked reconnect schedule for the live channel.
+// Returns the delay in milliseconds before the next reconnect attempt.
+// Sequence is the chore's locked decision: [250, 500, 1000, 2000, 5000, 10000]
+// for attempts 0..5, then 10000 ms for every further attempt — caps the
+// retry cadence at ~6/min so a long-down server does not produce a tight
+// loop of failing requests.
+const RECONNECT_DELAYS_MS = [250, 500, 1000, 2000, 5000, 10000];
+export function nextReconnectDelay(attempt) {
+  if (attempt < 0) return RECONNECT_DELAYS_MS[0];
+  if (attempt >= RECONNECT_DELAYS_MS.length - 1) {
+    return RECONNECT_DELAYS_MS[RECONNECT_DELAYS_MS.length - 1];
+  }
+  return RECONNECT_DELAYS_MS[attempt];
+}
+
+// Pure factory: live-channel wiring with auto-reconnect and re-fetch on
+// reconnect. Side-effects come from the injected collaborators
+// (`eventSource`, `fetchFn`, `scheduleTimeout`), so the reconnect/backoff/
+// re-fetch flow is unit-testable in `bun:test` without a real browser.
+//
+// Options:
+//   url          — SSE endpoint, e.g. "/events/stream"
+//   stateUrl     — full-state endpoint, e.g. "/api/state"
+//   eventSource  — function `(url) => EventSourceLike`
+//   fetchFn      — function `(url) => Promise<Response-like with .json()>`
+//   scheduleTimeout — function `(fn, ms) => void` (e.g. setTimeout)
+//   onMessage    — called per `onmessage` payload, parsed with JSON.parse
+//   onReplaceAll — called once per successful reconnect, with the records
+//                  array fetched from `stateUrl`, before any subsequent
+//                  `onMessage` is forwarded.
+//
+// Behaviour: on `onerror`, closes the current channel and schedules a
+// single reconnect with `nextReconnectDelay(attempt)`. The attempt counter
+// resets to 0 only after a successful re-fetch + new `onopen`.
+export function createLiveChannel(options) {
+  const {
+    url,
+    stateUrl,
+    eventSource,
+    fetchFn,
+    scheduleTimeout,
+    onMessage,
+    onReplaceAll,
+  } = options;
+
+  let attempt = 0;
+  let current = null;
+  let isReconnect = false;
+  // Until a reconnect's onReplaceAll has resolved we hold off forwarding
+  // any onmessage frames so the user never sees a live frame applied on
+  // top of stale state. Initial mount path does its own initial fetch
+  // outside this factory, so the first connection is treated as
+  // "already had a snapshot" — `holdMessages` starts false.
+  let holdMessages = false;
+
+  function open() {
+    const src = eventSource(url);
+    current = src;
+
+    src.onmessage = (event) => {
+      if (holdMessages) return;
+      onMessage(JSON.parse(event.data));
+    };
+
+    src.onopen = () => {
+      if (!isReconnect) return;
+      // Successful reconnect path: re-fetch full state, replace, then
+      // resume forwarding live frames and reset the attempt counter.
+      Promise.resolve()
+        .then(() => fetchFn(stateUrl))
+        .then((res) => res.json())
+        .then((records) => {
+          onReplaceAll(records);
+          attempt = 0;
+          isReconnect = false;
+          holdMessages = false;
+        });
+    };
+
+    src.onerror = () => {
+      src.close();
+      const delay = nextReconnectDelay(attempt);
+      attempt += 1;
+      isReconnect = true;
+      holdMessages = true;
+      scheduleTimeout(() => open(), delay);
+    };
+  }
+
+  open();
+}
+
 // Pure helper: route a render through the browser's View Transitions API
 // when available, fall back to a synchronous call otherwise. Pure so it can
 // be unit-tested with bun:test without a DOM. Returns whatever the chosen
@@ -85,22 +187,32 @@ export async function mount(rootEl) {
   const res = await fetch("/api/state");
   const records = await res.json();
   let cards = cardsFromState(records);
-  withReorderTransition(typeof document !== "undefined" ? document : null, () =>
-    render(html`<${Dashboard} cards=${cards} />`, rootEl),
-  );
+  const renderNow = () =>
+    withReorderTransition(typeof document !== "undefined" ? document : null, () =>
+      render(html`<${Dashboard} cards=${cards} />`, rootEl),
+    );
+  renderNow();
 
-  // Open the live channel. EventSource is a browser primitive; in non-DOM
-  // environments (e.g. unit tests of cardsFromState) `mount` isn't called.
-  // No custom onerror reconnect policy — recovery is sister slice [016].
+  // Open the live channel through the injectable factory so the
+  // reconnect/backoff/re-fetch flow is exercised by `mount` exactly as it
+  // is in the unit tests. EventSource is a browser primitive; in non-DOM
+  // environments (e.g. unit tests of pure helpers) `mount` isn't called.
   if (typeof EventSource !== "undefined") {
-    const source = new EventSource("/events/stream");
-    source.onmessage = (event) => {
-      const record = JSON.parse(event.data);
-      cards = applyEventToCards(cards, record);
-      withReorderTransition(typeof document !== "undefined" ? document : null, () =>
-        render(html`<${Dashboard} cards=${cards} />`, rootEl),
-      );
-    };
+    createLiveChannel({
+      url: "/events/stream",
+      stateUrl: "/api/state",
+      eventSource: (u) => new EventSource(u),
+      fetchFn: (u) => fetch(u),
+      scheduleTimeout: (fn, ms) => setTimeout(fn, ms),
+      onMessage: (record) => {
+        cards = applyEventToCards(cards, record);
+        renderNow();
+      },
+      onReplaceAll: (records) => {
+        cards = replaceCardsFromState(records);
+        renderNow();
+      },
+    });
   }
 }
 
