@@ -38,6 +38,7 @@ extract_field() {
 }
 cwd="$(extract_field cwd)"
 parent_tool_use_id="$(extract_field parent_tool_use_id)"
+hook_event_name="$(extract_field hook_event_name)"
 
 pane_or_tty="${TMUX_PANE:-${TTY:-PPID-$PPID}}"
 shell_id_raw="${HOSTNAME}:${pane_or_tty}:${cwd}"
@@ -51,10 +52,18 @@ if [ -n "$parent_tool_use_id" ]; then
   parent_id="$shell_id"
   id_raw="${parent_id}:${parent_tool_use_id}"
   id="$(printf '%s' "$id_raw" | shasum -a 256 | cut -c1-8)"
+  # SubagentStop hook event signals the subagent has finished — emit the
+  # end-flavored payload (status: "idle") so the server removes the
+  # subagent record. All other subagent fires are activity events.
+  if [ "$hook_event_name" = "SubagentStop" ]; then
+    sub_status="idle"
+  else
+    sub_status="active"
+  fi
   body="$(bun -e '
     const [id, id_raw, parent_id, status] = process.argv.slice(1);
     process.stdout.write(JSON.stringify({ id, id_raw, parent_id, status }));
-  ' "$id" "$id_raw" "$parent_id" "active")"
+  ' "$id" "$id_raw" "$parent_id" "$sub_status")"
 else
   # Top-level fire — preserve existing behavior exactly.
   id="$shell_id"
