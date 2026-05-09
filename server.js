@@ -65,6 +65,10 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
           id: payload.id,
           id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
           status: payload.status,
+          session_label:
+            typeof payload.session_label === "string" && payload.session_label.length > 0
+              ? payload.session_label
+              : undefined,
           last_event_at: Date.now(),
         };
         state.set(payload.id, record);
