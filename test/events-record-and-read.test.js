@@ -35,8 +35,21 @@ describe("POST /events + GET /api/state", () => {
   });
 
   it("keeps two distinct ids as two records", async () => {
-    // placeholder for Step 3 — written now to keep the file co-located,
-    // but skipped so this RED only tests the Step 2 behavior.
-    expect(true).toBe(true);
+    const post = (body) =>
+      fetch(`${baseUrl}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+    await post({ id: "aaa11111", id_raw: "host:pane:/a", status: "working" });
+    await post({ id: "bbb22222", id_raw: "host:pane:/b", status: "waiting" });
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    expect(stateRes.status).toBe(200);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(2);
+    const ids = records.map((r) => r.id).sort();
+    expect(ids).toEqual(["aaa11111", "bbb22222"]);
   });
 });
