@@ -6,6 +6,22 @@
 // Exports `createServer({ port, hostname })` for tests; the bottom of the file
 // boots the server on 127.0.0.1 when run directly via `bun run server.js`.
 
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+// Static paths the server serves. Enumerated explicitly — no directory
+// traversal: any GET path under /vendor/ outside this map returns 404.
+const STATIC_FILES = {
+  "/": "index.html",
+  "/index.html": "index.html",
+  "/app.js": "app.js",
+  "/styles.css": "styles.css",
+  "/vendor/preact.module.js": "vendor/preact.module.js",
+  "/vendor/htm.module.js": "vendor/htm.module.js",
+};
+
 export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
   /** @type {Map<string, { id_raw?: string, status: string, last_event_at: number }>} */
   const state = new Map();
@@ -19,6 +35,14 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
       if (req.method === "GET" && url.pathname === "/api/state") {
         const records = Array.from(state.values());
         return Response.json(records);
+      }
+
+      if (req.method === "GET" && Object.hasOwn(STATIC_FILES, url.pathname)) {
+        const file = Bun.file(join(here, STATIC_FILES[url.pathname]));
+        if (await file.exists()) {
+          return new Response(file);
+        }
+        return new Response("not found", { status: 404 });
       }
 
       if (req.method === "POST" && url.pathname === "/events") {
