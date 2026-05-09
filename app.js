@@ -10,14 +10,26 @@ const html = htm.bind(h);
 // Pure data-shaping function: transform server `/api/state` records into the
 // minimal view-model the UI renders. Pure so it can be unit-tested with
 // bun:test without a DOM. Does not mutate its input.
+//
+// repo/branch are carried through when the record supplies them; absent or
+// empty values flow through as empty strings, and the renderer omits the
+// element entirely rather than substituting a placeholder. (See chore [022] /
+// AC2: never `unknown` or `-` for missing repo/branch.)
 export function cardsFromState(records) {
-  return records.map((r) => ({ id: r.id, status: r.status }));
+  return records.map((r) => ({
+    id: r.id,
+    status: r.status,
+    repo: typeof r.repo === "string" ? r.repo : "",
+    branch: typeof r.branch === "string" ? r.branch : "",
+  }));
 }
 
-function Card({ id, status }) {
+function Card({ id, status, repo, branch }) {
   return html`
     <div class="card">
       <div class="card-id">${id}</div>
+      ${repo ? html`<div class="card-repo">${repo}</div>` : null}
+      ${branch ? html`<div class="card-branch">${branch}</div>` : null}
       <div class="card-status">${status}</div>
     </div>
   `;
@@ -29,7 +41,9 @@ function Dashboard({ cards }) {
   }
   return html`
     <div class="cards">
-      ${cards.map((c) => html`<${Card} id=${c.id} status=${c.status} />`)}
+      ${cards.map(
+        (c) => html`<${Card} id=${c.id} status=${c.status} repo=${c.repo} branch=${c.branch} />`,
+      )}
     </div>
   `;
 }
