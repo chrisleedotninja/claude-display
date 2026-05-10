@@ -1,0 +1,33 @@
+import { describe, it, expect } from "bun:test";
+import { cardsFromState } from "../app.js";
+
+describe("cardsFromState", () => {
+  it("returns an empty array when given no records", () => {
+    expect(cardsFromState([])).toEqual([]);
+  });
+
+  it("returns one view-model per record, preserving id, status, and order", () => {
+    const records = [
+      { id: "aaa11111", status: "working" },
+      { id: "bbb22222", status: "waiting" },
+    ];
+    const cards = cardsFromState(records);
+    expect(cards).toHaveLength(2);
+    expect(cards[0].id).toBe("aaa11111");
+    expect(cards[0].status).toBe("working");
+    expect(cards[0].last_event_at).toBe(null);
+    expect(cards[1].id).toBe("bbb22222");
+    expect(cards[1].status).toBe("waiting");
+    expect(cards[1].last_event_at).toBe(null);
+  });
+
+  it("does not mutate its argument", () => {
+    const records = [
+      { id: "aaa11111", status: "working" },
+      { id: "bbb22222", status: "waiting" },
+    ];
+    const snapshot = JSON.parse(JSON.stringify(records));
+    cardsFromState(records);
+    expect(records).toEqual(snapshot);
+  });
+});

@@ -1,0 +1,298 @@
+/* Locked visual direction: system-font typography, neutral dark palette,
+ * rounded-rectangle card silhouette. See docs/decisions/0001-heartbeat-stack.md.
+ */
+
+:root {
+  --bg: #15171c;
+  --fg: #e6e8ef;
+  --muted: #8a8fa3;
+  --accent: #7aa2f7;
+  --border: #2a2e3a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2rem;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 36rem;
+}
+
+.card {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card-repo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.card-branch {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card-session-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card-desktop {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card-elapsed {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card-status {
+  color: var(--card-status-color, var(--muted));
+  font-weight: 500;
+}
+
+.card-status-icon {
+  color: var(--card-status-color, var(--muted));
+  font-size: 16px;
+  line-height: 1;
+}
+
+.empty-state {
+  color: var(--muted);
+  padding: 2rem 0;
+  text-align: center;
+}
+
+/* Nested subagent cards. Mission Board treatment: indented and visually
+ * tied to the parent via a left-edge connector, with a slightly reduced
+ * silhouette so nesting is unambiguous (see parent 001 spec lines 17 + 57). */
+.subagents {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  margin-left: 1.25rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border);
+}
+
+.subagent-card {
+  margin-left: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  font-size: 13px;
+  border-left: 3px solid var(--accent);
+}
+
+/* Attention-state visual loudness (chore [019]). Cards whose status is in the
+ * attention set (approval / waiting / blocked) carry the .is-attention class
+ * from app.js. The colored bar along the card's left edge uses the same
+ * per-status color the [018] slice already exposes via --card-status-color.
+ * All such treatment is scoped under .card.is-attention so non-attention cards
+ * never inherit either the bar or the pulse animation.
+ */
+.card.is-attention {
+  /* attention-rail along the left edge, in the per-status color */
+  border-left: 4px solid var(--card-status-color);
+  padding-left: calc(1.25rem - 3px);
+  animation: attention-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes attention-pulse {
+  0%, 100% {
+    box-shadow: -1px 0 0 0 var(--card-status-color);
+  }
+  50% {
+    box-shadow: -6px 0 12px -2px var(--card-status-color);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.is-attention {
+    animation: none;
+  }
+}
+
+/* Tweaks panel scaffolding (chore [033]). Visual treatment locked in this
+ * slice so sister slices [036], [037] don't re-fight CSS. All colours source
+ * the existing :root Tokyo Night Storm palette vars — no new top-level hex
+ * literals are introduced for the panel surface, header, body, or toggle. */
+.tweaks-panel-toggle {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 13px;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+}
+
+.tweaks-panel-surface {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+  max-width: 36rem;
+}
+
+.tweaks-panel-header {
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.4rem;
+}
+
+.tweaks-panel-body {
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Per-tone filter controls (chore [036]). Each control sits in the panel
+ * body with a stable class plus an `is-on` modifier so the on/off state is
+ * visually unambiguous. All declarations source the existing :root Tokyo
+ * Night Storm palette vars — no new top-level hex literals are introduced. */
+.tweaks-tone-filter {
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tweaks-tone-filter.is-on {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+/* Per-field visibility toggles (chore [037]). Each control sits alongside
+ * the tone filters in the panel body with a stable class plus an `is-on`
+ * modifier so the on/off state is visually unambiguous. All declarations
+ * source the existing :root Tokyo Night Storm palette vars — no new
+ * top-level hex literals are introduced. Mirrors `.tweaks-tone-filter`
+ * so the two control families share visual language. */
+.tweaks-field-toggle {
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tweaks-field-toggle.is-on {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+/* "Needs from you" tag (chore [038]). Rendered only on attention-state cards
+ * whose record carries a recognized `needs` wire-enum value (one of the seven
+ * keys in needs-tokens.js). The base rule provides shared layout/typography;
+ * each per-category attribute selector below applies a visually distinct
+ * accent so the seven categories are unambiguously different at a glance,
+ * satisfying AC2. Per-category icons are single Unicode glyphs supplied by
+ * NEEDS_TOKENS[key].icon — no webfont/icon-font dependency, matching
+ * docs/decisions/0001-heartbeat-stack.md. */
+.card-needs-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.card-needs-tag-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.card-needs-tag-label {
+  white-space: nowrap;
+}
+
+.card-needs-tag[data-need="approve-tool"] {
+  color: #9ece6a;
+  border-color: #9ece6a;
+  background: rgba(158, 206, 106, 0.08);
+}
+
+.card-needs-tag[data-need="answer-question"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(122, 162, 247, 0.1);
+}
+
+.card-needs-tag[data-need="provide-input"] {
+  color: #bb9af7;
+  border-color: #bb9af7;
+  background: rgba(187, 154, 247, 0.08);
+}
+
+.card-needs-tag[data-need="pick-option"] {
+  color: #7dcfff;
+  border-color: #7dcfff;
+  background: rgba(125, 207, 255, 0.08);
+}
+
+.card-needs-tag[data-need="confirm-destructive"] {
+  color: #f7768e;
+  border-color: #f7768e;
+  background: rgba(247, 118, 142, 0.1);
+  font-weight: 600;
+}
+
+.card-needs-tag[data-need="resolve-conflict"] {
+  color: #ff9e64;
+  border-color: #ff9e64;
+  background: rgba(255, 158, 100, 0.08);
+}
+
+.card-needs-tag[data-need="review-diff"] {
+  color: #e0af68;
+  border-color: #e0af68;
+  background: rgba(224, 175, 104, 0.08);
+}
