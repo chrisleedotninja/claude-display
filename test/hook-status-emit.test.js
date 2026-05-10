@@ -108,3 +108,40 @@ describe("hook auto-derives idle for SessionStart", () => {
     expect(records[0].status).toBe("idle");
   });
 });
+
+describe("hook auto-derives working from event name", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  for (const eventName of ["UserPromptSubmit", "PreToolUse", "PostToolUse", "PreCompact"]) {
+    it(`maps ${eventName} -> 'working'`, async () => {
+      const cwd = `/working/${eventName}`;
+      const env = {
+        PATH: process.env.PATH,
+        HOSTNAME: "hostA",
+        TMUX_PANE: `%${eventName.length}`,
+        CLAUDE_DISPLAY_URL: baseUrl,
+      };
+      const { exitCode, stderr } = await runHook({
+        env,
+        stdin: JSON.stringify({ cwd, hook_event_name: eventName }),
+      });
+      expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+      const stateRes = await fetch(`${baseUrl}/api/state`);
+      const records = await stateRes.json();
+      const rec = records.find((r) => r.id_raw === `hostA:%${eventName.length}:${cwd}`);
+      expect(rec, `no record for ${eventName}`).toBeDefined();
+      expect(rec.status).toBe("working");
+    });
+  }
+});
