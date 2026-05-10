@@ -202,10 +202,117 @@ export function applyEventToCards(cards, record) {
   return next;
 }
 
-function SubagentCard({ id, status }) {
+// StatusGlyph renders an inline SVG per status. Accepts { status, anim, size }.
+// Uses a discriminant-key switch on the status string — STATUS_TOKENS.*.icon
+// remains a Unicode string for backwards compatibility (status-tokens.test.js
+// must stay green) and is not used here. Fallback is the idle dashed-circle.
+// Animation classes (glyph-spin / glyph-pulse / glyph-blink / glyph-shimmer)
+// are applied to the relevant child element only when `anim` is truthy.
+function StatusGlyph({ status, anim, size = 16 }) {
+  const sz = size;
+  const half = sz / 2;
+  const r = half - 1.5;
+
+  switch (status) {
+    case "working": {
+      // Spinning arc — the moving arc spins when anim is on
+      const arcClass = anim ? "glyph-spin" : "";
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.4" />
+          <path class=${arcClass} d=${`M ${half} ${half - r} A ${r} ${r} 0 0 1 ${half + r} ${half}`} stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="transform-origin: ${half}px ${half}px" />
+        </svg>
+      `;
+    }
+    case "approval": {
+      // Question mark with a pulse ring when anim is on
+      const ringClass = anim ? "glyph-pulse" : "";
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle class=${ringClass} cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1" opacity="0.5" style="transform-origin: ${half}px ${half}px" />
+          <text x=${half} y=${half + 1} text-anchor="middle" dominant-baseline="middle" font-size=${sz * 0.55} fill="currentColor" font-weight="600">?</text>
+        </svg>
+      `;
+    }
+    case "waiting": {
+      // Ellipsis / three dots; middle dot blinks when anim is on
+      const dotClass = anim ? "glyph-blink" : "";
+      const cx1 = half - sz * 0.25;
+      const cx2 = half;
+      const cx3 = half + sz * 0.25;
+      const cy = half;
+      const dr = sz * 0.09;
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${cx1} cy=${cy} r=${dr} fill="currentColor" opacity="0.5" />
+          <circle class=${dotClass} cx=${cx2} cy=${cy} r=${dr} fill="currentColor" />
+          <circle cx=${cx3} cy=${cy} r=${dr} fill="currentColor" opacity="0.5" />
+        </svg>
+      `;
+    }
+    case "blocked": {
+      // Exclamation mark in a circle — no animation
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1.5" />
+          <text x=${half} y=${half + 0.5} text-anchor="middle" dominant-baseline="middle" font-size=${sz * 0.55} fill="currentColor" font-weight="700">!</text>
+        </svg>
+      `;
+    }
+    case "tests": {
+      // Three dots in a speech-bubble style; shimmer when anim is on
+      const shimmerClass = anim ? "glyph-shimmer" : "";
+      const bx = 1.5;
+      const by = 1.5;
+      const bw = sz - 3;
+      const bh = sz * 0.7;
+      const br = 3;
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <rect class=${shimmerClass} x=${bx} y=${by} width=${bw} height=${bh} rx=${br} stroke="currentColor" stroke-width="1.5" />
+          <circle cx=${half - sz * 0.2} cy=${by + bh / 2} r=${sz * 0.07} fill="currentColor" />
+          <circle cx=${half} cy=${by + bh / 2} r=${sz * 0.07} fill="currentColor" />
+          <circle cx=${half + sz * 0.2} cy=${by + bh / 2} r=${sz * 0.07} fill="currentColor" />
+        </svg>
+      `;
+    }
+    case "reviewing": {
+      // Eye / magnifier shape — no animation
+      const rx2 = r * 0.55;
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1.5" />
+          <circle cx=${half} cy=${half} r=${rx2} stroke="currentColor" stroke-width="1" opacity="0.7" />
+        </svg>
+      `;
+    }
+    case "success": {
+      // Checkmark in a circle — no animation
+      const cs = sz * 0.22;
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1.5" />
+          <path d=${`M ${half - cs} ${half} L ${half - cs * 0.2} ${half + cs} L ${half + cs} ${half - cs * 0.8}`} stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      `;
+    }
+    case "idle":
+    default: {
+      // Dashed circle — idle / unknown fallback
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" />
+        </svg>
+      `;
+    }
+  }
+}
+
+function SubagentCard({ id, status, anim }) {
   return html`
     <div class="card subagent-card">
       <div class="card-id">${id}</div>
+      <span class="card-status-icon"><${StatusGlyph} status=${status} anim=${anim} size=${12} /></span>
       <div class="card-status">${status}</div>
     </div>
   `;
@@ -225,7 +332,7 @@ function needKeyFor(needs_tag) {
   return null;
 }
 
-function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, elapsed, subagents, needs_tag }) {
+function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, elapsed, subagents, needs_tag, anim }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
@@ -235,7 +342,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
     subagents && subagents.length > 0
       ? html`
           <div class="subagents">
-            ${subagents.map((s) => html`<${SubagentCard} id=${s.id} status=${s.status} />`)}
+            ${subagents.map((s) => html`<${SubagentCard} id=${s.id} status=${s.status} anim=${anim} />`)}
           </div>
         `
       : null;
@@ -257,14 +364,14 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
             <span class="card-needs-tag-label">${needs_tag.label}</span>
           </div>`
         : null}
-      <span class="card-status-icon">${icon}</span>
+      <span class="card-status-icon"><${StatusGlyph} status=${status} anim=${anim} size=${16} /></span>
       <div class="card-status">${label}</div>
       ${nested}
     </div>
   `;
 }
 
-function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggleTone, visibleFields, onToggleField }) {
+function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggleTone, visibleFields, onToggleField, anim, onToggleAnim }) {
   const cardsTree =
     cards.length === 0
       ? html`<div class="empty-state">No sessions yet.</div>`
@@ -286,6 +393,7 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
                   elapsed=${c.elapsed}
                   subagents=${c.subagents}
                   needs_tag=${c.needs_tag}
+                  anim=${anim}
                 />`,
             )}
           </div>
@@ -348,12 +456,24 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
                 field,
               ),
             )}
+            ${h(
+              "button",
+              {
+                type: "button",
+                class: anim
+                  ? "tweaks-anim-toggle is-on"
+                  : "tweaks-anim-toggle",
+                "aria-pressed": anim ? "true" : "false",
+                onClick: onToggleAnim,
+              },
+              "animation",
+            )}
           </div>
         </div>
       `
     : null;
   return html`
-    <div>
+    <div class=${anim ? "" : "anim-off"}>
       <${HeaderStrip} now=${now} />
       <${StatsStrip} cards=${cards} />
       <button
@@ -599,6 +719,10 @@ export async function mount(rootEl) {
   // (chore [003]) stay untouched and AC4 holds automatically. Hydrated
   // from the persistence layer (chore [039]).
   let visibleFields = hydrateVisibleFields(storage, new Set(["repo", "branch", "session", "desktop", "elapsed"]));
+  // Animation toggle (chore [051]). Closure-level boolean, defaults true (animations on).
+  // When false, the Dashboard root carries class `anim-off` which suppresses all
+  // glyph keyframe animations via CSS. Mirrors the `panelOpen` toggle pattern.
+  let anim = true;
   // Coalescing writers (chore [039]). A burst of synchronous toggles
   // produces exactly one write per writer of the final snapshot — the
   // injected `scheduleWrite` defers the flush so the writer collapses
@@ -628,6 +752,10 @@ export async function mount(rootEl) {
     fieldsWriter.schedule(visibleFields);
     draw();
   };
+  const toggleAnim = () => {
+    anim = !anim;
+    draw();
+  };
   const draw = () => {
     const now = Date.now();
     const cards = stripHiddenFields(
@@ -647,6 +775,8 @@ export async function mount(rootEl) {
             onToggleTone=${toggleTone}
             visibleFields=${visibleFields}
             onToggleField=${toggleField}
+            anim=${anim}
+            onToggleAnim=${toggleAnim}
           />`,
           rootEl,
         ),
