@@ -74,3 +74,13 @@ describe("tokensForNeed", () => {
     expect(tokensForNeed("approval")).toBeNull();
   });
 });
+
+describe("module evaluation", () => {
+  it("imports cleanly without adding own enumerable properties to globalThis", async () => {
+    const before = new Set(Object.keys(globalThis));
+    await import("../needs-tokens.js");
+    const after = new Set(Object.keys(globalThis));
+    const added = [...after].filter((key) => !before.has(key));
+    expect(added).toEqual([]);
+  });
+});
