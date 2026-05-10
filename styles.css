@@ -200,6 +200,94 @@ body {
   }
 }
 
+/* Status glyph SVG sizing (chore [051]). The .status-glyph class is placed on
+ * the <svg> element inside .card-status-icon. Top-level card glyphs
+ * are 16px; subagent pill glyphs are 12px. Colors derive from the per-card
+ * CSS custom property so each status gets its own accent. */
+.status-glyph {
+  width: 16px;
+  height: 16px;
+  display: block;
+  color: var(--card-status-color, var(--muted));
+}
+
+.subagent-card .status-glyph {
+  width: 12px;
+  height: 12px;
+}
+
+/* Glyph animation keyframes (chore [051]). Named with the glyph- prefix to
+ * avoid collisions with the token-layer keyframes (spin/blink/shimmer) defined
+ * by chore [048]. Each animation class is applied to the relevant SVG child
+ * element by the StatusGlyph component when the `anim` prop is truthy. */
+@keyframes glyph-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes glyph-pulse {
+  0%, 100% { transform: scale(1);    opacity: 0.5; }
+  50%      { transform: scale(1.35); opacity: 0; }
+}
+
+@keyframes glyph-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+@keyframes glyph-shimmer {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
+}
+
+.glyph-spin {
+  animation: glyph-spin 1.2s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.glyph-pulse {
+  animation: glyph-pulse 2s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.glyph-blink {
+  animation: glyph-blink 1.1s step-end infinite;
+}
+
+.glyph-shimmer {
+  animation: glyph-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Animation suppression (chore [051]). When the anim toggle is off, Dashboard
+ * adds class `anim-off` to its root element. All glyph animation classes under
+ * this root are silenced. Mirrors the @media (prefers-reduced-motion) gate. */
+.anim-off .glyph-spin,
+.anim-off .glyph-pulse,
+.anim-off .glyph-blink,
+.anim-off .glyph-shimmer {
+  animation: none;
+}
+
+/* Tweaks anim toggle (chore [051]). Mirrors .tweaks-field-toggle and
+ * .tweaks-tone-filter visual language so the three control families share
+ * appearance in the panel body. */
+.tweaks-anim-toggle {
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tweaks-anim-toggle.is-on {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
 /* Tweaks panel scaffolding (chore [033]). Visual treatment locked in this
  * slice so sister slices [036], [037] don't re-fight CSS. All colours source
  * the existing :root Tokyo Night Storm palette vars — no new top-level hex
