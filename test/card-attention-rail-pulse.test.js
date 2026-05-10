@@ -235,18 +235,23 @@ describe("non-attention cards never render a rail and never pulse (negative)", (
     }
   });
 
-  it("served /styles.css has no @keyframes rule outside the attention-pulse name", async () => {
-    // Sanity: the only @keyframes shipped by this slice is the pulse keyframes.
+  it("served /styles.css has the attention-pulse @keyframes and the six token-layer keyframes", async () => {
+    // Updated for chore [048]: the token layer adds five additional keyframes alongside attention-pulse.
     const body = await (await fetch(`${baseUrl}/styles.css`)).text();
     const names = [];
     const re = /@keyframes\s+([\w-]+)\s*\{/g;
     let m;
     while ((m = re.exec(body)) !== null) names.push(m[1]);
-    expect(names.length).toBeGreaterThan(0);
-    for (const n of names) {
-      // every shipped @keyframes is named for attention/pulse purpose
-      expect(/(attention|pulse)/i.test(n)).toBe(true);
-    }
+    // attention-pulse must still exist
+    expect(names).toContain("attention-pulse");
+    // token-layer keyframes must exist
+    expect(names).toContain("pulseRing");
+    expect(names).toContain("pulseDot");
+    expect(names).toContain("spin");
+    expect(names).toContain("blink");
+    expect(names).toContain("shimmer");
+    // total: at least 6
+    expect(names.length).toBeGreaterThanOrEqual(6);
   });
 });
 

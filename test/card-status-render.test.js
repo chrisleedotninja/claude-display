@@ -117,7 +117,7 @@ describe("Card renders the per-status color and icon (served-source contract)", 
   it("served /styles.css still declares the .card silhouette (AC5 preserved)", async () => {
     const body = await (await fetch(`${baseUrl}/styles.css`)).text();
     expect(/\.card\b/.test(body)).toBe(true);
-    expect(body.includes("-apple-system")).toBe(true);
+    expect(body.includes("Inter Tight")).toBe(true);
   });
 });
 
