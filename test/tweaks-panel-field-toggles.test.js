@@ -329,3 +329,74 @@ describe("served /app.js toggle handler updates visibleFields via toggleVisibleF
     expect(/\bdraw\s*\(/.test(span)).toBe(true);
   });
 });
+
+describe("Card body is unaffected by field-toggle wiring (Step 7, AC4)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  function extractBalancedBlock(src, openBraceIdx) {
+    let depth = 1;
+    for (let i = openBraceIdx + 1; i < src.length; i++) {
+      const c = src[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) return src.slice(openBraceIdx + 1, i);
+      }
+    }
+    return null;
+  }
+
+  function findFunctionBodyOpenBrace(src, name) {
+    const sigRe = new RegExp(`\\bfunction\\s+${name}\\s*\\(`);
+    const m = src.match(sigRe);
+    if (!m) return -1;
+    let i = m.index + m[0].length;
+    let depth = 1;
+    while (i < src.length && depth > 0) {
+      const c = src[i];
+      if (c === "(") depth++;
+      else if (c === ")") depth--;
+      i++;
+    }
+    while (i < src.length && /\s/.test(src[i])) i++;
+    if (src[i] !== "{") return -1;
+    return i;
+  }
+
+  it("Card's body in app.js does not reference visibleFields, stripHiddenFields, tweaks-field-toggle, or toggleVisibleField", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const openIdx = findFunctionBodyOpenBrace(body, "Card");
+    expect(openIdx).toBeGreaterThan(-1);
+    const inner = extractBalancedBlock(body, openIdx);
+    expect(inner).not.toBeNull();
+    expect(inner.includes("visibleFields")).toBe(false);
+    expect(inner.includes("stripHiddenFields")).toBe(false);
+    expect(inner.includes("tweaks-field-toggle")).toBe(false);
+    expect(inner.includes("toggleVisibleField")).toBe(false);
+  });
+
+  it("Card's body still contains the five conditional card-* div-class strings (regression guard for chore [003])", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const openIdx = findFunctionBodyOpenBrace(body, "Card");
+    const inner = extractBalancedBlock(body, openIdx);
+    for (const cls of [
+      "card-repo",
+      "card-branch",
+      "card-session-label",
+      "card-desktop",
+      "card-elapsed",
+    ]) {
+      expect(inner.includes(cls)).toBe(true);
+    }
+  });
+});
