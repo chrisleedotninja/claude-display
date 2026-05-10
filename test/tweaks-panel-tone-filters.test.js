@@ -160,3 +160,96 @@ describe("served /app.js renders one filter control per tone group inside the pa
     expect(hasClickHandler).toBe(true);
   });
 });
+
+describe("served /app.js filtered card list drives both the rendered list and the empty-state branch (Step 5)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Brace-walking helper (mirrored from
+  // test/tweaks-panel-open-close.test.js): given the source and the index
+  // of an opening `{`, return the substring between that brace and its
+  // matching `}`.
+  function extractBalancedBlock(src, openBraceIdx) {
+    let depth = 1;
+    for (let i = openBraceIdx + 1; i < src.length; i++) {
+      const c = src[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) return src.slice(openBraceIdx + 1, i);
+      }
+    }
+    return null;
+  }
+
+  function findFunctionBodyOpenBrace(src, name) {
+    const sigRe = new RegExp(`\\bfunction\\s+${name}\\s*\\(`);
+    const m = src.match(sigRe);
+    if (!m) return -1;
+    let i = m.index + m[0].length;
+    let depth = 1;
+    while (i < src.length && depth > 0) {
+      const c = src[i];
+      if (c === "(") depth++;
+      else if (c === ")") depth--;
+      i++;
+    }
+    while (i < src.length && /\s/.test(src[i])) i++;
+    if (src[i] !== "{") return -1;
+    return i;
+  }
+
+  it("served /app.js contains a filterCardsByTones( call site whose args reference cardsFromState and activeTones", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const callIdx = body.indexOf("filterCardsByTones(");
+    expect(callIdx).toBeGreaterThan(-1);
+    const openParen = callIdx + "filterCardsByTones".length;
+    expect(body[openParen]).toBe("(");
+    let depth = 1;
+    let endIdx = -1;
+    for (let i = openParen + 1; i < body.length; i++) {
+      const c = body[i];
+      if (c === "(") depth++;
+      else if (c === ")") {
+        depth--;
+        if (depth === 0) {
+          endIdx = i;
+          break;
+        }
+      }
+    }
+    expect(endIdx).toBeGreaterThan(openParen);
+    const span = body.slice(openParen, endIdx + 1);
+    expect(span.includes("cardsFromState")).toBe(true);
+    expect(span.includes("activeTones")).toBe(true);
+  });
+
+  it("preserves the empty-state class string and the 'No sessions yet.' literal", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("empty-state")).toBe(true);
+    expect(body.includes("No sessions yet.")).toBe(true);
+  });
+
+  it("Dashboard's body has a cards.length === 0 check and no second cardsFromState( call inside it", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const openIdx = findFunctionBodyOpenBrace(body, "Dashboard");
+    expect(openIdx).toBeGreaterThan(-1);
+    const inner = extractBalancedBlock(body, openIdx);
+    expect(inner).not.toBeNull();
+    // The empty-state branch is still gated on cards.length === 0.
+    expect(/cards\.length\s*===\s*0/.test(inner)).toBe(true);
+    // Dashboard does not re-derive cards itself — it gets the already-
+    // filtered list from mount(). So no cardsFromState( call appears
+    // inside Dashboard's body.
+    expect(inner.includes("cardsFromState(")).toBe(false);
+  });
+});
