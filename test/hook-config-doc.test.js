@@ -20,6 +20,19 @@ const REQUIRED_EVENTS = [
   "SubagentStop",
 ];
 
+// The seven-value `needs` wire enum locked in
+// docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md. README must
+// list each so a fresh setup can spell them correctly.
+const NEEDS_ENUM = [
+  "approve-tool",
+  "answer-question",
+  "provide-input",
+  "pick-option",
+  "confirm-destructive",
+  "resolve-conflict",
+  "review-diff",
+];
+
 describe("README documents the hook configuration", () => {
   const readme = readFileSync(readmePath, "utf8");
   const jsonBlocks = [...readme.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]);
@@ -60,5 +73,38 @@ describe("README documents the hook configuration", () => {
 
   it("references docs/decisions/0002-hook-status-mapping.md for the eight-value taxonomy", () => {
     expect(readme).toContain("docs/decisions/0002-hook-status-mapping.md");
+  });
+
+  it("mentions the CLAUDE_DISPLAY_NEEDS env var so users can force any of the seven needs values", () => {
+    expect(readme).toContain("CLAUDE_DISPLAY_NEEDS");
+  });
+
+  it("references docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md for the seven-value needs taxonomy", () => {
+    expect(readme).toContain("docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md");
+  });
+
+  it("names each of the seven needs enum values so a fresh setup can spell them correctly", () => {
+    for (const needsValue of NEEDS_ENUM) {
+      expect(readme, `expected README to name needs value '${needsValue}'`).toContain(needsValue);
+    }
+  });
+
+  it("documents the attention-state-only filter on needs (names approval, waiting, blocked together with needs)", () => {
+    // The README must communicate that needs is only attached on attention-state
+    // events. Concretely: there is some prose region where the word "needs"
+    // co-occurs with all three of "approval", "waiting", "blocked".
+    const needsParagraph = readme
+      .split(/\n\s*\n/)
+      .find(
+        (p) =>
+          /needs/i.test(p) &&
+          /\bapproval\b/.test(p) &&
+          /\bwaiting\b/.test(p) &&
+          /\bblocked\b/.test(p),
+      );
+    expect(
+      needsParagraph,
+      "expected a paragraph in README that names needs alongside approval/waiting/blocked",
+    ).toBeDefined();
   });
 });
