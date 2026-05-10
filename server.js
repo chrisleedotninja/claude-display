@@ -34,6 +34,7 @@ const STATIC_FILES = {
   "/index.html": "index.html",
   "/app.js": "app.js",
   "/styles.css": "styles.css",
+  "/status-tokens.js": "status-tokens.js",
   "/vendor/preact.module.js": "vendor/preact.module.js",
   "/vendor/htm.module.js": "vendor/htm.module.js",
 };

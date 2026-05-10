@@ -4,6 +4,7 @@
 
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
+import { tokensForStatus } from "./status-tokens.js";
 
 const html = htm.bind(h);
 
@@ -11,14 +12,28 @@ const html = htm.bind(h);
 // minimal view-model the UI renders. Pure so it can be unit-tested with
 // bun:test without a DOM. Does not mutate its input.
 export function cardsFromState(records) {
-  return records.map((r) => ({ id: r.id, status: r.status }));
+  return records.map((r) => {
+    const token = tokensForStatus(r.status);
+    return {
+      id: r.id,
+      status: r.status,
+      color: token.color,
+      icon: token.icon,
+      label: token.label,
+    };
+  });
 }
 
-function Card({ id, status }) {
+function Card({ id, status, color, icon, label }) {
   return html`
-    <div class="card">
+    <div
+      class="card"
+      data-status=${status}
+      style=${`--card-status-color: ${color}`}
+    >
       <div class="card-id">${id}</div>
-      <div class="card-status">${status}</div>
+      <span class="card-status-icon">${icon}</span>
+      <div class="card-status">${label}</div>
     </div>
   `;
 }
@@ -29,7 +44,15 @@ function Dashboard({ cards }) {
   }
   return html`
     <div class="cards">
-      ${cards.map((c) => html`<${Card} id=${c.id} status=${c.status} />`)}
+      ${cards.map(
+        (c) => html`<${Card}
+          id=${c.id}
+          status=${c.status}
+          color=${c.color}
+          icon=${c.icon}
+          label=${c.label}
+        />`,
+      )}
     </div>
   `;
 }

@@ -49,8 +49,14 @@ body {
 }
 
 .card-status {
-  color: var(--accent);
+  color: var(--card-status-color, var(--muted));
   font-weight: 500;
+}
+
+.card-status-icon {
+  color: var(--card-status-color, var(--muted));
+  font-size: 16px;
+  line-height: 1;
 }
 
 .empty-state {
