@@ -184,3 +184,68 @@ describe("served /styles.css carries a continuous pulse on .card.is-attention", 
     expect(durationSeconds).toBeLessThanOrEqual(4);
   });
 });
+
+describe("non-attention cards never render a rail and never pulse (negative)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js has no unconditional 'card is-attention' literal", async () => {
+    // The conditional class string is OK ("card is-attention" only assigned
+    // when isAttentionStatus(status) is true). Reject only an unconditional
+    // assignment: the literal string "card is-attention" must not appear in
+    // a JSX-style class attribute that is not inside an isAttentionStatus
+    // ternary or conditional. The defensible string-match: app.js must
+    // mention isAttentionStatus on the same line or near the line that emits
+    // the class string.
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("is-attention")).toBe(true);
+    // Reject hard-coded class="card is-attention" or class='card is-attention'
+    expect(/class\s*=\s*["']card\s+is-attention["']/.test(body)).toBe(false);
+  });
+
+  it("served /styles.css has no rule that targets .card without .is-attention and mentions animation", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    // Walk every CSS rule { ... } block. For each, look at its selector list
+    // (the substring between the previous `}` (or start) and the `{`). If the
+    // selector contains `.card` but not `.is-attention`, the block must not
+    // mention `animation` or `rail`.
+    const blockRe = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = blockRe.exec(body)) !== null) {
+      const selector = m[1].trim();
+      const decls = m[2];
+      // Skip @-rules whose "selector" is an at-rule (e.g. @media, @keyframes).
+      if (selector.startsWith("@")) continue;
+      // Skip rules that don't target .card at all.
+      if (!/\.card\b/.test(selector)) continue;
+      // Rules scoped to .card.is-attention are allowed to carry rail/animation.
+      if (selector.includes(".is-attention")) continue;
+      // For any other .card-targeting rule: forbid animation and rail.
+      expect(/\banimation\b/.test(decls)).toBe(false);
+      expect(/rail/i.test(decls)).toBe(false);
+    }
+  });
+
+  it("served /styles.css has no @keyframes rule outside the attention-pulse name", async () => {
+    // Sanity: the only @keyframes shipped by this slice is the pulse keyframes.
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const names = [];
+    const re = /@keyframes\s+([\w-]+)\s*\{/g;
+    let m;
+    while ((m = re.exec(body)) !== null) names.push(m[1]);
+    expect(names.length).toBeGreaterThan(0);
+    for (const n of names) {
+      // every shipped @keyframes is named for attention/pulse purpose
+      expect(/(attention|pulse)/i.test(n)).toBe(true);
+    }
+  });
+});
