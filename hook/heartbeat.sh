@@ -89,6 +89,26 @@ if [ -z "$status" ]; then
   esac
 fi
 
+# Derive the dashboard `needs` value (ADR 0003-needs-taxonomy-and-authoring-scheme).
+# Order, mirroring the locked authoring scheme:
+#   1. CLAUDE_DISPLAY_NEEDS, if set to one of the seven enum values, wins
+#      verbatim. Any other value (unset/empty/unknown) silently falls through.
+#   2. Otherwise, the per-event auto-derivation table applies. Only one row
+#      auto-emits a value: Notification whose `message` contains `permission`
+#      (case-insensitive) → `approve-tool`. Every other event leaves `needs`
+#      empty (override-only).
+# Then the attention-state filter gates whether the field is attached at all
+# (see the JSON-build step below): the field is only included when `status` is
+# one of `approval`, `waiting`, `blocked`. Override has no power to bypass
+# this filter.
+needs=""
+needs_override="${CLAUDE_DISPLAY_NEEDS:-}"
+case "$needs_override" in
+  approve-tool|answer-question|provide-input|pick-option|confirm-destructive|resolve-conflict|review-diff)
+    needs="$needs_override"
+    ;;
+esac
+
 pane_or_tty="${TMUX_PANE:-${TTY:-PPID-$PPID}}"
 shell_id_raw="${HOSTNAME}:${pane_or_tty}:${cwd}"
 shell_id="$(printf '%s' "$shell_id_raw" | shasum -a 256 | cut -c1-8)"
@@ -176,8 +196,17 @@ else
     if (out.length > 0) process.stdout.write(out);
   ')"
 
+  # `needs` is attached only when the resolved status is an attention-state
+  # value (`approval` | `waiting` | `blocked`) per ADR 0003. The override has
+  # no power to bypass this filter, so we apply it here in shell rather than
+  # forwarding raw `needs` and a status flag into the bun JSON-build step.
+  needs_for_payload=""
+  case "$status" in
+    approval|waiting|blocked) needs_for_payload="$needs" ;;
+  esac
+
   body="$(bun -e '
-    const [id, id_raw, status, repo, branch, session_label, desktop, event_at] = process.argv.slice(1);
+    const [id, id_raw, status, repo, branch, session_label, desktop, event_at, needs] = process.argv.slice(1);
     const payload = { id, id_raw, status, repo, branch, event_at: Number(event_at) };
     if (typeof session_label === "string" && session_label.length > 0) {
       payload.session_label = session_label;
@@ -185,8 +214,11 @@ else
     if (typeof desktop === "string" && desktop.length > 0) {
       payload.desktop = desktop;
     }
+    if (typeof needs === "string" && needs.length > 0) {
+      payload.needs = needs;
+    }
     process.stdout.write(JSON.stringify(payload));
-  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at")"
+  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at" "$needs_for_payload")"
 fi
 
 curl --silent --show-error \
