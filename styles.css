@@ -48,6 +48,33 @@ body {
   font-size: 13px;
 }
 
+.card-repo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.card-branch {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card-session-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card-desktop {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card-elapsed {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .card-status {
   color: var(--accent);
   font-weight: 500;
