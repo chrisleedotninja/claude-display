@@ -41,4 +41,36 @@ describe("tokensForNeed", () => {
       expect(tokensForNeed(key)).toBe(NEEDS_TOKENS[key]);
     }
   });
+
+  it("returns null for undefined", () => {
+    expect(tokensForNeed(undefined)).toBeNull();
+  });
+
+  it("returns null for null", () => {
+    expect(tokensForNeed(null)).toBeNull();
+  });
+
+  it("returns null for the empty string", () => {
+    expect(tokensForNeed("")).toBeNull();
+  });
+
+  it("returns null for a non-string number input", () => {
+    expect(tokensForNeed(42)).toBeNull();
+  });
+
+  it("returns null for a non-string boolean input", () => {
+    expect(tokensForNeed(true)).toBeNull();
+  });
+
+  it("returns null for a non-string object input", () => {
+    expect(tokensForNeed({})).toBeNull();
+  });
+
+  it("returns null for an unknown string", () => {
+    expect(tokensForNeed("not-a-need")).toBeNull();
+  });
+
+  it("returns null for a status-enum string (does not silently accept the cousin enum)", () => {
+    expect(tokensForNeed("approval")).toBeNull();
+  });
 });
