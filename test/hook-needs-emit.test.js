@@ -89,3 +89,79 @@ describe("CLAUDE_DISPLAY_NEEDS override emits needs verbatim on attention-state 
     });
   }
 });
+
+describe("CLAUDE_DISPLAY_NEEDS override is dropped on non-attention-state events", () => {
+  // The status filter (ADR 0003) gates `needs` to only the three attention-state
+  // values: approval, waiting, blocked. A valid override paired with any other
+  // resolved status must NOT cause `needs` to appear on the wire — the override
+  // has no power to bypass the filter.
+  it("drops needs when resolved status is 'working' (PreToolUse, no status override)", async () => {
+    const cap = createCaptureServer();
+    try {
+      const env = {
+        PATH: process.env.PATH,
+        HOSTNAME: "hostA",
+        TMUX_PANE: "%200",
+        CLAUDE_DISPLAY_URL: cap.baseUrl,
+        CLAUDE_DISPLAY_NEEDS: "approve-tool",
+      };
+      const { exitCode, stderr } = await runHook({
+        env,
+        stdin: JSON.stringify({ cwd: "/needs-drop/working", hook_event_name: "PreToolUse" }),
+      });
+      expect(exitCode, `stderr: ${stderr}`).toBe(0);
+      expect(cap.captured).toHaveLength(1);
+      expect(cap.captured[0].status).toBe("working");
+      expect(Object.hasOwn(cap.captured[0], "needs")).toBe(false);
+    } finally {
+      cap.stop();
+    }
+  });
+
+  it("drops needs when resolved status is 'idle' (SessionStart)", async () => {
+    const cap = createCaptureServer();
+    try {
+      const env = {
+        PATH: process.env.PATH,
+        HOSTNAME: "hostA",
+        TMUX_PANE: "%201",
+        CLAUDE_DISPLAY_URL: cap.baseUrl,
+        CLAUDE_DISPLAY_NEEDS: "answer-question",
+      };
+      const { exitCode, stderr } = await runHook({
+        env,
+        stdin: JSON.stringify({ cwd: "/needs-drop/idle", hook_event_name: "SessionStart" }),
+      });
+      expect(exitCode, `stderr: ${stderr}`).toBe(0);
+      expect(cap.captured).toHaveLength(1);
+      expect(cap.captured[0].status).toBe("idle");
+      expect(Object.hasOwn(cap.captured[0], "needs")).toBe(false);
+    } finally {
+      cap.stop();
+    }
+  });
+
+  it("drops needs when resolved status is 'tests' (CLAUDE_DISPLAY_STATUS=tests)", async () => {
+    const cap = createCaptureServer();
+    try {
+      const env = {
+        PATH: process.env.PATH,
+        HOSTNAME: "hostA",
+        TMUX_PANE: "%202",
+        CLAUDE_DISPLAY_URL: cap.baseUrl,
+        CLAUDE_DISPLAY_STATUS: "tests",
+        CLAUDE_DISPLAY_NEEDS: "review-diff",
+      };
+      const { exitCode, stderr } = await runHook({
+        env,
+        stdin: JSON.stringify({ cwd: "/needs-drop/tests", hook_event_name: "PreToolUse" }),
+      });
+      expect(exitCode, `stderr: ${stderr}`).toBe(0);
+      expect(cap.captured).toHaveLength(1);
+      expect(cap.captured[0].status).toBe("tests");
+      expect(Object.hasOwn(cap.captured[0], "needs")).toBe(false);
+    } finally {
+      cap.stop();
+    }
+  });
+});
