@@ -148,12 +148,17 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         // the payload-supplied `event_at` instead.
         if (typeof payload.parent_id === "string" && state.has(payload.parent_id)) {
           const parent = state.get(payload.parent_id);
+          const now = Date.now();
           parent.subagents.set(payload.id, {
             id: payload.id,
             id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
             status: payload.status,
-            last_event_at: Date.now(),
+            last_event_at: now,
           });
+          // Bump the parent's own `last_event_at` so the most-recent-first
+          // sort in `cardsFromState` (chore [015]) ranks the parent at the
+          // top, carrying its nested subagents along (chore [030]).
+          parent.last_event_at = now;
           return new Response(null, { status: 202 });
         }
         const record = {

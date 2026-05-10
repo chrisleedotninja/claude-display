@@ -59,20 +59,23 @@ describe("POST /events with status=idle and parent_id removes a known subagent",
     // Register the parent.
     await post({ id: "P4dddddd", id_raw: "host:pane:/p4", status: "working" });
 
-    // Capture the parent's scalar fields and last_event_at after registration.
+    // Capture the parent's identity scalars (id/id_raw/status) after
+    // registration. `last_event_at` is intentionally excluded from the
+    // identity-scalar comparison because chore [030] makes a subagent
+    // *activity* attach advance the parent's last_event_at — the end-event
+    // delta below is what this test is really about.
     let records = await (await fetch(`${baseUrl}/api/state`)).json();
     expect(records).toHaveLength(1);
     const parentBefore = records[0];
-    const parentSnapshot = {
+    const parentIdentity = {
       id: parentBefore.id,
       id_raw: parentBefore.id_raw,
       status: parentBefore.status,
-      last_event_at: parentBefore.last_event_at,
     };
 
-    // Register a subagent under the parent. (This may or may not advance
-    // last_event_at on the parent; the assertion below is across the
-    // *end-event* delta, so capture the post-attach snapshot for comparison.)
+    // Register a subagent under the parent. Per chore [030], this *activity*
+    // attach is now expected to advance the parent's `last_event_at`; the
+    // identity scalars (id, id_raw, status) must remain unchanged.
     await post({
       id: "S4eeeeee",
       id_raw: "P4dddddd:tooluse-4",
@@ -82,18 +85,18 @@ describe("POST /events with status=idle and parent_id removes a known subagent",
 
     records = await (await fetch(`${baseUrl}/api/state`)).json();
     const parentAfterAttach = records[0];
-    const snapshotAfterAttach = {
+    const identityAfterAttach = {
       id: parentAfterAttach.id,
       id_raw: parentAfterAttach.id_raw,
       status: parentAfterAttach.status,
-      last_event_at: parentAfterAttach.last_event_at,
     };
+    const lastEventAfterAttach = parentAfterAttach.last_event_at;
 
-    // Sanity baseline: parent scalar fields are still the registration values
-    // (the subagent attach should not have rewritten the parent's scalars).
-    expect(snapshotAfterAttach).toEqual(parentSnapshot);
+    // Identity scalars unchanged across the activity-attach delta.
+    expect(identityAfterAttach).toEqual(parentIdentity);
 
-    // Fire the end event for the subagent.
+    // Fire the end event for the subagent. Per chore [030], end events must
+    // *not* bump the parent's last_event_at (preserved from this slice).
     await post({
       id: "S4eeeeee",
       id_raw: "P4dddddd:tooluse-4",
@@ -104,12 +107,17 @@ describe("POST /events with status=idle and parent_id removes a known subagent",
     records = await (await fetch(`${baseUrl}/api/state`)).json();
     expect(records).toHaveLength(1);
     const parentAfter = records[0];
+    // Identity scalars and last_event_at both unchanged across the
+    // *end-event* delta.
     expect({
       id: parentAfter.id,
       id_raw: parentAfter.id_raw,
       status: parentAfter.status,
       last_event_at: parentAfter.last_event_at,
-    }).toEqual(snapshotAfterAttach);
+    }).toEqual({
+      ...identityAfterAttach,
+      last_event_at: lastEventAfterAttach,
+    });
     // And of course the subagent is gone.
     expect(parentAfter.subagents).toHaveLength(0);
   });
