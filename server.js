@@ -53,6 +53,7 @@ const STATIC_FILES = {
   "/app.js": "app.js",
   "/styles.css": "styles.css",
   "/status-tokens.js": "status-tokens.js",
+  "/needs-tokens.js": "needs-tokens.js",
   "/vendor/preact.module.js": "vendor/preact.module.js",
   "/vendor/htm.module.js": "vendor/htm.module.js",
 };

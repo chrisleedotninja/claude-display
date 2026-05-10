@@ -5,6 +5,7 @@
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
 import { tokensForStatus, isAttentionStatus } from "./status-tokens.js";
+import { NEEDS_TOKENS, tokensForNeed } from "./needs-tokens.js";
 
 const html = htm.bind(h);
 
@@ -75,6 +76,18 @@ export function cardsFromState(records, now = Date.now()) {
       if (Array.isArray(r.subagents)) {
         card.subagents = r.subagents.map((s) => ({ id: s.id, status: s.status }));
       }
+      // Optional `needs_tag` projection: only attention-state cards (chore [019]'s
+      // ATTENTION_STATUSES) carry the tag, and only when `needs` resolves to a
+      // recognized wire-enum entry via `tokensForNeed` (chore [035]). The
+      // projection stores the frozen entry by reference so consumers compare
+      // by identity. The renderer derives the per-category key by walking
+      // NEEDS_TOKENS at render time. Mirrors the conditional-assign pattern
+      // used for session_label / desktop / elapsed: the key is absent from
+      // the view-model when the projection does not apply.
+      if (isAttentionStatus(r.status)) {
+        const tag = tokensForNeed(r.needs);
+        if (tag !== null) card.needs_tag = tag;
+      }
       return card;
     })
     .sort((a, b) => {
@@ -114,10 +127,25 @@ function SubagentCard({ id, status }) {
   `;
 }
 
-function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, elapsed, subagents }) {
+// Reverse-lookup the wire-enum key for a frozen NEEDS_TOKENS entry. The
+// view-model stores the entry by identity (so consumers can compare with
+// `===`), and the per-category data attribute on the rendered tag needs the
+// key string. Walking the small (7-entry) NEEDS_TOKENS object on each render
+// is cheap and avoids embedding the seven keys as a literal list anywhere
+// outside needs-tokens.js.
+function needKeyFor(needs_tag) {
+  if (!needs_tag) return null;
+  for (const k of Object.keys(NEEDS_TOKENS)) {
+    if (NEEDS_TOKENS[k] === needs_tag) return k;
+  }
+  return null;
+}
+
+function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, elapsed, subagents, needs_tag }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
+  const needKey = needKeyFor(needs_tag);
   const className = isAttentionStatus(status) ? "card is-attention" : "card";
   const nested =
     subagents && subagents.length > 0
@@ -139,6 +167,12 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
       ${hasLabel ? html`<div class="card-session-label">${session_label}</div>` : null}
       ${hasDesktop ? html`<div class="card-desktop">${desktop}</div>` : null}
       ${hasElapsed ? html`<div class="card-elapsed">${elapsed}</div>` : null}
+      ${needs_tag
+        ? html`<div class="card-needs-tag" data-need=${needKey}>
+            <span class="card-needs-tag-icon">${needs_tag.icon}</span>
+            <span class="card-needs-tag-label">${needs_tag.label}</span>
+          </div>`
+        : null}
       <span class="card-status-icon">${icon}</span>
       <div class="card-status">${label}</div>
       ${nested}
@@ -167,6 +201,7 @@ function Dashboard({ cards }) {
             desktop=${c.desktop}
             elapsed=${c.elapsed}
             subagents=${c.subagents}
+            needs_tag=${c.needs_tag}
           />`,
       )}
     </div>
