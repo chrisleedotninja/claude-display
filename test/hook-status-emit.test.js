@@ -1,0 +1,110 @@
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { createServer } from "../server.js";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const hookPath = join(here, "..", "hook", "heartbeat.sh");
+
+async function runHook({ env, stdin }) {
+  const proc = Bun.spawn([hookPath], {
+    env,
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  proc.stdin.write(stdin);
+  await proc.stdin.end();
+  const exitCode = await proc.exited;
+  const stderr = await new Response(proc.stderr).text();
+  const stdout = await new Response(proc.stdout).text();
+  return { exitCode, stderr, stdout };
+}
+
+// Capturing proxy: a minimal Bun.serve that records the raw JSON body the
+// hook POSTs to /events. Lets the tests assert on what the *hook* actually
+// emitted, before the real server's enum-collapse step rewrites it.
+function createCaptureServer() {
+  const captured = [];
+  const server = Bun.serve({
+    port: 0,
+    hostname: "127.0.0.1",
+    async fetch(req) {
+      const url = new URL(req.url);
+      if (req.method === "POST" && url.pathname === "/events") {
+        try {
+          const body = await req.json();
+          captured.push(body);
+        } catch {
+          captured.push({ __parse_error: true });
+        }
+        return new Response(null, { status: 202 });
+      }
+      return new Response("not found", { status: 404 });
+    },
+  });
+  return {
+    server,
+    captured,
+    baseUrl: `http://127.0.0.1:${server.port}`,
+    stop: () => server.stop(true),
+  };
+}
+
+describe("hook auto-derives idle for SessionStart", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("emits status === 'idle' (verbatim, not via server collapse) when hook_event_name is SessionStart", async () => {
+    const cap = createCaptureServer();
+    try {
+      const env = {
+        PATH: process.env.PATH,
+        HOSTNAME: "hostA",
+        TMUX_PANE: "%5",
+        CLAUDE_DISPLAY_URL: cap.baseUrl,
+      };
+
+      const { exitCode, stderr } = await runHook({
+        env,
+        stdin: JSON.stringify({ cwd: "/some/dir", hook_event_name: "SessionStart" }),
+      });
+      expect(exitCode, `stderr: ${stderr}`).toBe(0);
+      expect(cap.captured).toHaveLength(1);
+      // The hook itself must put "idle" on the wire — not "active" that the
+      // server happens to collapse to "idle" via the [017] allow-list.
+      expect(cap.captured[0].status).toBe("idle");
+    } finally {
+      cap.stop();
+    }
+  });
+
+  it("the resulting record on /api/state has status === 'idle' for SessionStart", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%5",
+      CLAUDE_DISPLAY_URL: baseUrl,
+    };
+
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({ cwd: "/some/dir", hook_event_name: "SessionStart" }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe("idle");
+  });
+});
