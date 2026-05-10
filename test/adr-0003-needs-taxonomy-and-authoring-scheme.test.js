@@ -105,3 +105,34 @@ describe("ADR 0003 override env var — CLAUDE_DISPLAY_NEEDS", () => {
     expect(adr).toMatch(/no\s+error/i);
   });
 });
+
+describe("ADR 0003 per-event auto-derivation table", () => {
+  const adr = readFileSync(adrPath, "utf8");
+  const wiredEvents = [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "PreCompact",
+    "Notification",
+    "Stop",
+    "SubagentStop",
+    "SessionEnd",
+  ];
+
+  for (const event of wiredEvents) {
+    it(`names the wired Claude Code hook event \`${event}\``, () => {
+      expect(adr, `expected event '${event}' in ADR per-event table`).toContain(event);
+    });
+  }
+
+  it("maps Notification with `permission` (case-insensitive) to `approve-tool`", () => {
+    // The Notification + permission row must resolve to approve-tool in close proximity.
+    expect(adr).toMatch(/Notification[\s\S]{0,400}?permission[\s\S]{0,200}?`?approve-tool`?/i);
+  });
+
+  it("uses an unambiguous 'no needs value is auto-emitted' phrasing for non-Notification events", () => {
+    // The exact canonical phrasing locked by the chore plan.
+    expect(adr).toMatch(/no\s+needs\s+value\s+is\s+auto[- ]emitted/i);
+  });
+});
