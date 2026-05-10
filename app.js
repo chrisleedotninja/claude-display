@@ -223,7 +223,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   `;
 }
 
-function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone }) {
+function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone, visibleFields, onToggleField }) {
   const cardsTree =
     cards.length === 0
       ? html`<div class="empty-state">No sessions yet.</div>`
@@ -262,6 +262,15 @@ function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone 
   // stable `tweaks-tone-filter` class, `is-on` modifier when active,
   // the tone string as the visible label, and an `onClick` wired to
   // `onToggleTone`.
+  // Per-field visibility toggles (chore [037]). Each control sits alongside
+  // the tone filters in the panel body with a stable `tweaks-field-toggle`
+  // class plus an `is-on` modifier when its field is in `visibleFields`.
+  // Built via `h(...)` directly inside the surface template literal so the
+  // literal stays a single backtick block — no nested `html\`...\``
+  // interpolations — and so the five field-name literals plus the
+  // `onClick` wiring appear inline within the panel-body span (Step 4
+  // served-source assertions). Field-stripping for the rendered cards
+  // happens in `draw()` via `stripHiddenFields`, not in `Card`.
   const panelSurface = panelOpen
     ? html`
         <div class="tweaks-panel-surface">
@@ -280,6 +289,21 @@ function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone 
                   onClick: () => onToggleTone(tone),
                 },
                 tone,
+              ),
+            )}
+            ${["repo", "branch", "session", "desktop", "elapsed"].map((field) =>
+              h(
+                "button",
+                {
+                  key: "field-" + field,
+                  type: "button",
+                  class: visibleFields.has(field)
+                    ? "tweaks-field-toggle is-on"
+                    : "tweaks-field-toggle",
+                  "aria-pressed": visibleFields.has(field) ? "true" : "false",
+                  onClick: () => onToggleField(field),
+                },
+                field,
               ),
             )}
           </div>
@@ -447,8 +471,15 @@ export async function mount(rootEl) {
     activeTones = toggleActiveTone(activeTones, tone);
     draw();
   };
+  const toggleField = (field) => {
+    visibleFields = toggleVisibleField(visibleFields, field);
+    draw();
+  };
   const draw = () => {
-    const cards = filterCardsByTones(cardsFromState(records, Date.now()), activeTones);
+    const cards = stripHiddenFields(
+      filterCardsByTones(cardsFromState(records, Date.now()), activeTones),
+      visibleFields,
+    );
     return withReorderTransition(
       typeof document !== "undefined" ? document : null,
       () =>
@@ -459,6 +490,8 @@ export async function mount(rootEl) {
             onTogglePanel=${togglePanel}
             activeTones=${activeTones}
             onToggleTone=${toggleTone}
+            visibleFields=${visibleFields}
+            onToggleField=${toggleField}
           />`,
           rootEl,
         ),
