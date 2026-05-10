@@ -51,3 +51,25 @@ describe("ADR 0003 wire enum (seven values)", () => {
     });
   }
 });
+
+describe("ADR 0003 authoring scheme — hybrid chosen, alternatives rejected", () => {
+  const adr = readFileSync(adrPath, "utf8");
+
+  it("identifies the pure-auto-from-stdin alternative", () => {
+    expect(adr).toMatch(/pure\s+auto/i);
+  });
+
+  it("identifies the pure-explicit-signal alternative", () => {
+    expect(adr).toMatch(/pure\s+explicit/i);
+  });
+
+  it("identifies the hybrid alternative and chooses it", () => {
+    expect(adr).toMatch(/\bhybrid\b/i);
+    // Chosen-line: explicitly picks hybrid in an unambiguous chosen/decision context.
+    expect(adr).toMatch(/(chosen|chose|choose|pick|selected|decision)[\s\S]{0,80}?\bhybrid\b/i);
+  });
+
+  it("references the precedent ADR 0002-hook-status-mapping.md", () => {
+    expect(adr).toContain("0002-hook-status-mapping.md");
+  });
+});
