@@ -23,4 +23,14 @@ describe("NEEDS_TOKENS", () => {
       expect(NEEDS_TOKENS[key]).toEqual(EXPECTED[key]);
     }
   });
+
+  it("the outer object is frozen", () => {
+    expect(Object.isFrozen(NEEDS_TOKENS)).toBe(true);
+  });
+
+  it("each entry is frozen", () => {
+    for (const key of Object.keys(EXPECTED)) {
+      expect(Object.isFrozen(NEEDS_TOKENS[key])).toBe(true);
+    }
+  });
 });
