@@ -1,0 +1,59 @@
+/* Tokyo Night Storm palette — applied across mission + terminal feeds. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --font-sans: 'Inter Tight', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Tokyo Night Storm — base */
+  --tn-bg:        #24283b;  /* canvas background */
+  --tn-bg-dark:   #1f2335;  /* deeper panels */
+  --tn-bg-darker: #1a1b26;  /* deepest (header strip / meta column) */
+  --tn-surface:   #292e42;  /* card surface */
+  --tn-surface-2: #2f344d;  /* hover / accent surface */
+  --tn-rule:      #3b4261;  /* dividers */
+
+  --tn-fg:        #c0caf5;  /* primary text */
+  --tn-muted:     #a9b1d6;  /* secondary text */
+  --tn-faint:     #565f89;  /* tertiary / labels */
+  --tn-faintest:  #414868;  /* placeholder */
+
+  /* Tokyo Night Storm — accents */
+  --tn-red:    #f7768e;
+  --tn-orange: #ff9e64;
+  --tn-yellow: #e0af68;
+  --tn-green:  #9ece6a;
+  --tn-teal:   #73daca;
+  --tn-cyan:   #7dcfff;
+  --tn-blue:   #7aa2f7;
+  --tn-purple: #bb9af7;
+  --tn-magenta:#9d7cd8;
+
+  /* Status mapping */
+  --c-attention:    var(--tn-yellow);
+  --c-danger:       var(--tn-red);
+  --c-active:       var(--tn-blue);
+  --c-success:      var(--tn-green);
+  --c-neutral:      var(--tn-magenta);
+
+  /* Translucent backgrounds for status accents */
+  --c-attention-bg: rgba(224, 175, 104, 0.12);
+  --c-danger-bg:    rgba(247, 118, 142, 0.12);
+  --c-active-bg:    rgba(122, 162, 247, 0.12);
+  --c-success-bg:   rgba(158, 206, 106, 0.12);
+  --c-neutral-bg:   rgba(157, 124, 216, 0.12);
+}
+
+@keyframes pulseRing {
+  0%   { box-shadow: 0 0 0 0 currentColor; opacity: 0.7; }
+  70%  { box-shadow: 0 0 0 10px transparent; opacity: 0; }
+  100% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(1.18); opacity: 0.85; }
+}
+@keyframes spin   { to { transform: rotate(360deg); } }
+@keyframes blink  { 50% { opacity: 0.3; } }
+@keyframes shimmer { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
