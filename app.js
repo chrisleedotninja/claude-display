@@ -190,6 +190,7 @@ function Dashboard({ cards, panelOpen, onTogglePanel }) {
     ? html`
         <div class="tweaks-panel-surface">
           <h2 class="tweaks-panel-header">Tweaks</h2>
+          <div class="tweaks-panel-body"></div>
         </div>
       `
     : null;
