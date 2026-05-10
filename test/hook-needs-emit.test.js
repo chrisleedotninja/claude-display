@@ -212,3 +212,87 @@ describe("invalid CLAUDE_DISPLAY_NEEDS falls through silently", () => {
     });
   }
 });
+
+describe("Notification + permission message auto-derives needs='approve-tool'", () => {
+  // ADR 0003 per-event auto-derivation table: only one row auto-emits a value —
+  // Notification whose `message` contains `permission` (case-insensitive) →
+  // `approve-tool`. The same Notification without `permission` emits no
+  // auto-derived `needs` (already locked by Step 3's tests).
+  it("emits needs='approve-tool' on Notification + 'permission' (lowercase substring)", async () => {
+    const cap = createCaptureServer();
+    try {
+      const env = {
+        PATH: process.env.PATH,
+        HOSTNAME: "hostA",
+        TMUX_PANE: "%auto1",
+        CLAUDE_DISPLAY_URL: cap.baseUrl,
+      };
+      const { exitCode, stderr } = await runHook({
+        env,
+        stdin: JSON.stringify({
+          cwd: "/auto/permission",
+          hook_event_name: "Notification",
+          message: "Claude needs your permission to use Bash",
+        }),
+      });
+      expect(exitCode, `stderr: ${stderr}`).toBe(0);
+      expect(cap.captured).toHaveLength(1);
+      expect(cap.captured[0].status).toBe("approval");
+      expect(cap.captured[0].needs).toBe("approve-tool");
+    } finally {
+      cap.stop();
+    }
+  });
+
+  it("auto-derivation is case-insensitive — 'PERMISSION' substring emits needs='approve-tool'", async () => {
+    const cap = createCaptureServer();
+    try {
+      const env = {
+        PATH: process.env.PATH,
+        HOSTNAME: "hostA",
+        TMUX_PANE: "%auto2",
+        CLAUDE_DISPLAY_URL: cap.baseUrl,
+      };
+      const { exitCode, stderr } = await runHook({
+        env,
+        stdin: JSON.stringify({
+          cwd: "/auto/PERMISSION",
+          hook_event_name: "Notification",
+          message: "PERMISSION required",
+        }),
+      });
+      expect(exitCode, `stderr: ${stderr}`).toBe(0);
+      expect(cap.captured).toHaveLength(1);
+      expect(cap.captured[0].status).toBe("approval");
+      expect(cap.captured[0].needs).toBe("approve-tool");
+    } finally {
+      cap.stop();
+    }
+  });
+
+  it("Notification without 'permission' substring emits no auto-derived needs (waiting status)", async () => {
+    const cap = createCaptureServer();
+    try {
+      const env = {
+        PATH: process.env.PATH,
+        HOSTNAME: "hostA",
+        TMUX_PANE: "%auto3",
+        CLAUDE_DISPLAY_URL: cap.baseUrl,
+      };
+      const { exitCode, stderr } = await runHook({
+        env,
+        stdin: JSON.stringify({
+          cwd: "/auto/no-permission",
+          hook_event_name: "Notification",
+          message: "Claude is waiting for your input",
+        }),
+      });
+      expect(exitCode, `stderr: ${stderr}`).toBe(0);
+      expect(cap.captured).toHaveLength(1);
+      expect(cap.captured[0].status).toBe("waiting");
+      expect(Object.hasOwn(cap.captured[0], "needs")).toBe(false);
+    } finally {
+      cap.stop();
+    }
+  });
+});
