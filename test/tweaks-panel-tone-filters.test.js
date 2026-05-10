@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { toggleActiveTone } from "../app.js";
+import { createServer } from "../server.js";
 
 describe("toggleActiveTone pure helper (Step 1)", () => {
   it("returns a Set with the toggled tone removed when previously present", () => {
@@ -45,5 +46,39 @@ describe("toggleActiveTone pure helper (Step 1)", () => {
     expect(added.has("made-up-tone")).toBe(true);
     const removed = toggleActiveTone(added, "made-up-tone");
     expect(removed.has("made-up-tone")).toBe(false);
+  });
+});
+
+describe("served /app.js initialises activeTones from TONE_GROUPS (Step 2)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("imports TONE_GROUPS and filterCardsByTones from ./status-tones.js", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Match an import statement from "./status-tones.js" that references both
+    // names. Tolerant of ordering and surrounding whitespace.
+    const importRe =
+      /import\s*\{[^}]*\}\s*from\s*["']\.\/status-tones\.js["']/;
+    const m = body.match(importRe);
+    expect(m).not.toBeNull();
+    const importBlock = m[0];
+    expect(importBlock.includes("TONE_GROUPS")).toBe(true);
+    expect(importBlock.includes("filterCardsByTones")).toBe(true);
+  });
+
+  it("constructs a fresh Set(TONE_GROUPS) (or new Set([...TONE_GROUPS])) for the active-tones initialiser", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Tolerant: accept either `new Set(TONE_GROUPS)` or `new Set([...TONE_GROUPS])`.
+    const initRe = /new\s+Set\s*\(\s*(?:\[\s*\.\.\.\s*)?TONE_GROUPS\s*\]?\s*\)/;
+    expect(initRe.test(body)).toBe(true);
   });
 });
