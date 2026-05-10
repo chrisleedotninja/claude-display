@@ -79,3 +79,31 @@ describe("styles.css token layer — :root contains full token set and old-var a
     expect(body).toContain("--border:");
   });
 });
+
+describe("styles.css token layer — body uses var(--font-sans) and no longer hardcodes -apple-system", () => {
+  let handle;
+  let baseUrl;
+  let body;
+
+  beforeEach(async () => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+    const res = await fetch(`${baseUrl}/styles.css`);
+    body = await res.text();
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("body rule declares font-family: var(--font-sans)", () => {
+    expect(body).toContain("font-family: var(--font-sans)");
+  });
+
+  it("body rule does not hardcode -apple-system", () => {
+    // Extract just the body rule block to avoid false positives in comments
+    const bodyMatch = body.match(/\bbody\s*\{([^}]+)\}/);
+    expect(bodyMatch).not.toBeNull();
+    expect(bodyMatch[1]).not.toContain("-apple-system");
+  });
+});
