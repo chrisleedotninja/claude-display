@@ -1,0 +1,42 @@
+import { describe, it, expect } from "bun:test";
+import { cardsFromState } from "../app.js";
+import { STATUS_TOKENS } from "../status-tokens.js";
+
+describe("cardsFromState — color, icon, label fields", () => {
+  it("includes color/icon/label resolved via tokensForStatus for an allow-list status", () => {
+    const records = [{ id: "aaa11111", status: "approval" }];
+    const cards = cardsFromState(records);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].id).toBe("aaa11111");
+    expect(cards[0].status).toBe("approval");
+    expect(cards[0].color).toBe("#ff9e64");
+    expect(cards[0].icon).toBe("?");
+    expect(cards[0].label).toBe("Approval");
+  });
+
+  it("falls back to the idle token triple when status is undefined", () => {
+    const records = [{ id: "ccc33333" }];
+    const cards = cardsFromState(records);
+    expect(cards[0].color).toBe(STATUS_TOKENS.idle.color);
+    expect(cards[0].icon).toBe(STATUS_TOKENS.idle.icon);
+    expect(cards[0].label).toBe(STATUS_TOKENS.idle.label);
+  });
+
+  it("falls back to the idle token triple for an unknown status string", () => {
+    const records = [{ id: "ddd44444", status: "not-a-status" }];
+    const cards = cardsFromState(records);
+    expect(cards[0].color).toBe(STATUS_TOKENS.idle.color);
+    expect(cards[0].icon).toBe(STATUS_TOKENS.idle.icon);
+    expect(cards[0].label).toBe(STATUS_TOKENS.idle.label);
+  });
+
+  it("does not mutate its input records when adding the resolved fields", () => {
+    const records = [
+      { id: "eee55555", status: "working" },
+      { id: "fff66666", status: "blocked" },
+    ];
+    const snapshot = JSON.parse(JSON.stringify(records));
+    cardsFromState(records);
+    expect(records).toEqual(snapshot);
+  });
+});
