@@ -4,7 +4,7 @@
 
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
-import { tokensForStatus } from "./status-tokens.js";
+import { tokensForStatus, isAttentionStatus } from "./status-tokens.js";
 
 const html = htm.bind(h);
 
@@ -25,9 +25,10 @@ export function cardsFromState(records) {
 }
 
 function Card({ id, status, color, icon, label }) {
+  const className = isAttentionStatus(status) ? "card is-attention" : "card";
   return html`
     <div
-      class="card"
+      class=${className}
       data-status=${status}
       style=${`--card-status-color: ${color}`}
     >
