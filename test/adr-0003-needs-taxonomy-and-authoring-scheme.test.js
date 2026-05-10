@@ -73,3 +73,35 @@ describe("ADR 0003 authoring scheme — hybrid chosen, alternatives rejected", (
     expect(adr).toContain("0002-hook-status-mapping.md");
   });
 });
+
+describe("ADR 0003 override env var — CLAUDE_DISPLAY_NEEDS", () => {
+  const adr = readFileSync(adrPath, "utf8");
+
+  it("names `CLAUDE_DISPLAY_NEEDS` as the override env var", () => {
+    expect(adr).toContain("CLAUDE_DISPLAY_NEEDS");
+  });
+
+  it("states that a valid enum value wins verbatim", () => {
+    expect(adr).toMatch(/verbatim/i);
+  });
+
+  it("uses the phrase 'fall through' or 'fall-through'", () => {
+    expect(adr).toMatch(/fall[\s-]through/i);
+  });
+
+  it("names `unset` as one fall-through case", () => {
+    expect(adr).toMatch(/\bunset\b/i);
+  });
+
+  it("names `empty` as one fall-through case", () => {
+    expect(adr).toMatch(/\bempty\b/i);
+  });
+
+  it("references the seven-value enum as the validation set", () => {
+    expect(adr).toMatch(/seven[- ](?:value|string)/i);
+  });
+
+  it("states that no error is raised on unset/empty/invalid", () => {
+    expect(adr).toMatch(/no\s+error/i);
+  });
+});
