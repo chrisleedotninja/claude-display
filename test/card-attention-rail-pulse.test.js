@@ -78,3 +78,49 @@ describe("served /app.js Card adds is-attention class only for attention statuse
     ).toBe(false);
   });
 });
+
+describe("served /styles.css renders rail in per-status color on .card.is-attention", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("contains a .card.is-attention rule whose declaration block references var(--card-status-color)", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    // Find a .card.is-attention rule (opening brace) and assert its block
+    // (up to the matching closing brace) mentions var(--card-status-color).
+    const re = /\.card\.is-attention\s*\{([^}]*)\}/g;
+    const blocks = [];
+    let m;
+    while ((m = re.exec(body)) !== null) blocks.push(m[1]);
+    expect(blocks.length).toBeGreaterThan(0);
+    const anyHasColor = blocks.some((b) => b.includes("var(--card-status-color)"));
+    expect(anyHasColor).toBe(true);
+  });
+
+  it("every occurrence of the word `rail` sits inside a .card.is-attention rule block", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    // Strategy: collect ranges of every .card.is-attention { ... } block,
+    // then every match of /rail/ must fall inside at least one block.
+    const ranges = [];
+    const blockRe = /\.card\.is-attention\s*\{[^}]*\}/g;
+    let bm;
+    while ((bm = blockRe.exec(body)) !== null) {
+      ranges.push([bm.index, bm.index + bm[0].length]);
+    }
+    expect(ranges.length).toBeGreaterThan(0);
+    const railRe = /rail/gi;
+    let rm;
+    while ((rm = railRe.exec(body)) !== null) {
+      const inside = ranges.some(([s, e]) => rm.index >= s && rm.index < e);
+      expect(inside).toBe(true);
+    }
+  });
+});
