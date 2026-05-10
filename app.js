@@ -174,7 +174,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   `;
 }
 
-function Dashboard({ cards, panelOpen, onTogglePanel }) {
+function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone }) {
   const cardsTree =
     cards.length === 0
       ? html`<div class="empty-state">No sessions yet.</div>`
@@ -199,15 +199,41 @@ function Dashboard({ cards, panelOpen, onTogglePanel }) {
             )}
           </div>
         `;
-  // Tweaks panel scaffolding (chore [033]). The panel-open state lives in
-  // the dashboard's local UI state — see `mount()` below — and the surface
-  // is conditional on `panelOpen` so the panel is absent from the markup
-  // when closed. Subsequent steps in this chore will add the header and body.
+  // Tweaks panel surface (chores [033], [036]). The panel-open state and
+  // the active-tones Set both live in `mount()`'s closure-level UI state.
+  // Each tone-group filter control renders with the stable
+  // `tweaks-tone-filter` class plus an `is-on` modifier when its tone is
+  // currently active; clicking the control toggles its tone via
+  // `onToggleTone`.
+  // Build per-tone filter buttons via `h(...)` directly inside the surface
+  // template literal so the literal stays a single backtick block — no
+  // nested `html\`...\`` interpolations — and so the four tone-name
+  // literals plus the `onClick` wiring appear inline within the
+  // panel-body span (Step 4 served-source assertions). Each control:
+  // stable `tweaks-tone-filter` class, `is-on` modifier when active,
+  // the tone string as the visible label, and an `onClick` wired to
+  // `onToggleTone`.
   const panelSurface = panelOpen
     ? html`
         <div class="tweaks-panel-surface">
           <h2 class="tweaks-panel-header">Tweaks</h2>
-          <div class="tweaks-panel-body"></div>
+          <div class="tweaks-panel-body">
+            ${["attention", "active", "success", "neutral"].map((tone) =>
+              h(
+                "button",
+                {
+                  key: tone,
+                  type: "button",
+                  class: activeTones.has(tone)
+                    ? "tweaks-tone-filter is-on"
+                    : "tweaks-tone-filter",
+                  "aria-pressed": activeTones.has(tone) ? "true" : "false",
+                  onClick: () => onToggleTone(tone),
+                },
+                tone,
+              ),
+            )}
+          </div>
         </div>
       `
     : null;
@@ -364,7 +390,7 @@ export async function mount(rootEl) {
     draw();
   };
   const draw = () => {
-    const cards = cardsFromState(records, Date.now());
+    const cards = filterCardsByTones(cardsFromState(records, Date.now()), activeTones);
     return withReorderTransition(
       typeof document !== "undefined" ? document : null,
       () =>
@@ -373,6 +399,8 @@ export async function mount(rootEl) {
             cards=${cards}
             panelOpen=${panelOpen}
             onTogglePanel=${togglePanel}
+            activeTones=${activeTones}
+            onToggleTone=${toggleTone}
           />`,
           rootEl,
         ),
