@@ -11,10 +11,10 @@ describe("cardsFromState", () => {
       { id: "aaa11111", status: "working" },
       { id: "bbb22222", status: "waiting" },
     ];
-    expect(cardsFromState(records)).toEqual([
-      { id: "aaa11111", status: "working" },
-      { id: "bbb22222", status: "waiting" },
-    ]);
+    const cards = cardsFromState(records);
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toMatchObject({ id: "aaa11111", status: "working" });
+    expect(cards[1]).toMatchObject({ id: "bbb22222", status: "waiting" });
   });
 
   it("does not mutate its argument", () => {

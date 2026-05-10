@@ -4,6 +4,7 @@
 
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
+import { tokensForStatus } from "./status-tokens.js";
 
 const html = htm.bind(h);
 
@@ -11,7 +12,16 @@ const html = htm.bind(h);
 // minimal view-model the UI renders. Pure so it can be unit-tested with
 // bun:test without a DOM. Does not mutate its input.
 export function cardsFromState(records) {
-  return records.map((r) => ({ id: r.id, status: r.status }));
+  return records.map((r) => {
+    const token = tokensForStatus(r.status);
+    return {
+      id: r.id,
+      status: r.status,
+      color: token.color,
+      icon: token.icon,
+      label: token.label,
+    };
+  });
 }
 
 function Card({ id, status }) {
