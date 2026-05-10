@@ -58,3 +58,13 @@ Default branch of the hybrid scheme. The table below covers every Claude Code ho
 | `SessionEnd` | *(no needs value is auto-emitted)* | — |
 
 Rationale: the `Notification`-with-`permission` row reuses the discriminator already locked for the `approval` status, so the two fields agree without extra logic. Every other event lacks a discriminator that can pick among the seven enum values without false positives, so v1 leaves them override-only. The parent's validation walk for the remaining six categories is satisfied via `CLAUDE_DISPLAY_NEEDS`, which is acceptable per the spec's locked decision.
+
+## Status interaction — attention-state-only
+
+The `needs` field is meaningful only on attention-state events. The hook attaches a `needs` field to a `POST /events` body **only when the event's `status` is one of the three attention-state values**: `approval`, `waiting`, or `blocked`. On any other status — `working`, `tests`, `reviewing`, `success`, or `idle` — the hook **does not emit a `needs` field**, even if `CLAUDE_DISPLAY_NEEDS` is set to a valid enum value. The override has no power to attach `needs` to a non-attention-state event.
+
+This is the single source of truth that sibling chores [034] (server-side allow-list, which stores `needs` verbatim only when status is one of the three attention states) and [038] (frontend render-only-on-attention-state rule) cite. Together with the override fall-through rules above, the hook's emission of `needs` is fully determined by:
+
+1. Is the event's `status` one of `approval`, `waiting`, or `blocked`? If not, the hook emits no `needs` field.
+2. Otherwise, is `CLAUDE_DISPLAY_NEEDS` set to a value in the seven-string enum? If yes, emit it verbatim.
+3. Otherwise, look up the event in the per-event auto-derivation table above. If a row produces a value, emit it; if the row says no needs value is auto-emitted, emit no `needs` field.
