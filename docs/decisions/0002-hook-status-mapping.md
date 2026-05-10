@@ -30,3 +30,22 @@ The override is a single environment variable named **`CLAUDE_DISPLAY_STATUS`**,
 - `idle`
 
 Implementations of [021] read `CLAUDE_DISPLAY_STATUS` from the hook script's environment and validate it against the enum above. No other override channel (stdin payload field, signal file, etc.) is in scope.
+
+## Hook-event → dashboard-status static map
+
+Default branch of the hybrid scheme. The hook only emits a status — and therefore only POSTs to `/events` — for the rows below. Other Claude Code hook events the script may be wired to fire on, but where the table says "no event emitted", produce no POST.
+
+| Claude Code hook event | Dashboard status | Notes |
+|---|---|---|
+| `SessionStart` | `idle` | Session just started; the agent is not yet doing work. |
+| `UserPromptSubmit` | `working` | User just submitted a prompt; the agent is about to think. |
+| `PreToolUse` | `working` | About to invoke a tool. |
+| `PostToolUse` | `working` | Tool finished; the agent continues. |
+| `PreCompact` | `working` | Compaction is in-progress work. |
+| `Notification` (message contains `"permission"`, case-insensitive) | `approval` | Permission prompts are tool-approval moments. |
+| `Notification` (any other message) | `waiting` | Default for input prompts, idle nudges, and any message that does not match the permission probe. |
+| `Stop` | `idle` | Main turn ended; the event alone carries no "success" semantics. |
+| `SubagentStop` | `idle` | Subagent finished. Whether the dashboard collapses or fades a subagent card on `idle` is a frontend rendering concern, not a hook concern. |
+| `SessionEnd` | *(no event emitted)* | The card stays at its last status. A future "stale" visual treatment may key off this; out of scope here. |
+
+Rationale (summarized): emitting a status on every wired hook event — including `SessionEnd` — would either churn the card to `idle` for one frame before the terminal closes, or force the dashboard to special-case "ignore this status". Skipping the POST entirely is simpler.
