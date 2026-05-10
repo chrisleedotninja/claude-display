@@ -107,3 +107,44 @@ describe("styles.css token layer — body uses var(--font-sans) and no longer ha
     expect(bodyMatch[1]).not.toContain("-apple-system");
   });
 });
+
+describe("styles.css token layer — all five token-layer keyframes are defined", () => {
+  let handle;
+  let baseUrl;
+  let body;
+
+  beforeEach(async () => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+    const res = await fetch(`${baseUrl}/styles.css`);
+    body = await res.text();
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("defines @keyframes pulseRing", () => {
+    expect(body).toContain("@keyframes pulseRing");
+  });
+
+  it("defines @keyframes pulseDot", () => {
+    expect(body).toContain("@keyframes pulseDot");
+  });
+
+  it("defines @keyframes spin", () => {
+    expect(body).toContain("@keyframes spin");
+  });
+
+  it("defines @keyframes blink", () => {
+    expect(body).toContain("@keyframes blink");
+  });
+
+  it("defines @keyframes shimmer", () => {
+    expect(body).toContain("@keyframes shimmer");
+  });
+
+  it("retains existing @keyframes attention-pulse", () => {
+    expect(body).toContain("@keyframes attention-pulse");
+  });
+});
