@@ -60,4 +60,24 @@ describe("toneForStatus", () => {
       expect(toneForStatus(key)).toBe(STATUS_TONES[key]);
     }
   });
+
+  it("returns 'neutral' for undefined", () => {
+    expect(toneForStatus(undefined)).toBe("neutral");
+  });
+
+  it("returns 'neutral' for null", () => {
+    expect(toneForStatus(null)).toBe("neutral");
+  });
+
+  it("returns 'neutral' for the empty string", () => {
+    expect(toneForStatus("")).toBe("neutral");
+  });
+
+  it("returns 'neutral' for a non-string input (number)", () => {
+    expect(toneForStatus(42)).toBe("neutral");
+  });
+
+  it("returns 'neutral' for an unknown string", () => {
+    expect(toneForStatus("not-a-status")).toBe("neutral");
+  });
 });
