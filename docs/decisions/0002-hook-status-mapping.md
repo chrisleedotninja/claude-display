@@ -49,3 +49,11 @@ Default branch of the hybrid scheme. The hook only emits a status — and theref
 | `SessionEnd` | *(no event emitted)* | The card stays at its last status. A future "stale" visual treatment may key off this; out of scope here. |
 
 Rationale (summarized): emitting a status on every wired hook event — including `SessionEnd` — would either churn the card to `idle` for one frame before the terminal closes, or force the dashboard to special-case "ignore this status". Skipping the POST entirely is simpler.
+
+## Override fall-through behavior
+
+`CLAUDE_DISPLAY_STATUS` interacts with the static map per the following three rules:
+
+1. **Valid override wins, verbatim.** When `CLAUDE_DISPLAY_STATUS` is set to exactly one of `approval`, `waiting`, `blocked`, `working`, `tests`, `reviewing`, `success`, or `idle`, the hook emits that value as-is, regardless of the event name. The check is exact string match against the eight-value enum; case must match (lowercase).
+2. **Unset, empty, or invalid → fall through to auto-derivation.** When `CLAUDE_DISPLAY_STATUS` is unset, set to the empty string, or set to any string outside the enum, the hook ignores it and falls through to the static-map auto-derivation. No error is raised; the variable is simply treated as if not set.
+3. **`SessionEnd` is unaffected by the override.** No event is emitted for `SessionEnd` regardless of whether the override is set. The static map's no-emit rule wins; the override does not have the power to turn `SessionEnd` into a POST.
