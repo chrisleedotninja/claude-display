@@ -35,3 +35,11 @@ export function toneForStatus(status) {
   }
   return "neutral";
 }
+
+// Pure card-list filter. Returns a new array containing exactly the cards
+// whose `card.status` resolves (via toneForStatus) to a tone present in
+// `activeTones`, preserving the original order. Never returns the input
+// array reference; never mutates the input array or its cards.
+export function filterCardsByTones(cards, activeTones) {
+  return cards.filter((card) => activeTones.has(toneForStatus(card.status)));
+}
