@@ -124,3 +124,63 @@ describe("served /styles.css renders rail in per-status color on .card.is-attent
     }
   });
 });
+
+describe("served /styles.css carries a continuous pulse on .card.is-attention", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("declares an @keyframes rule and an animation: declaration scoped to .card.is-attention", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    expect(/@keyframes\s+\S+\s*\{/.test(body)).toBe(true);
+    // Find a .card.is-attention block that contains an `animation:` shorthand.
+    const re = /\.card\.is-attention\s*\{([^}]*)\}/g;
+    const blocks = [];
+    let m;
+    while ((m = re.exec(body)) !== null) blocks.push(m[1]);
+    const animBlock = blocks.find((b) => /\banimation\s*:/.test(b));
+    expect(animBlock).toBeDefined();
+  });
+
+  it("the animation on .card.is-attention is infinite", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const re = /\.card\.is-attention\s*\{([^}]*)\}/g;
+    let foundInfinite = false;
+    let m;
+    while ((m = re.exec(body)) !== null) {
+      const animMatch = m[1].match(/\banimation\s*:[^;]*;/);
+      if (animMatch && /\binfinite\b/.test(animMatch[0])) {
+        foundInfinite = true;
+      }
+    }
+    expect(foundInfinite).toBe(true);
+  });
+
+  it("the animation duration is between 1.2s and 4s (subtle, not strobing)", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const re = /\.card\.is-attention\s*\{([^}]*)\}/g;
+    let durationSeconds = null;
+    let m;
+    while ((m = re.exec(body)) !== null) {
+      const animMatch = m[1].match(/\banimation\s*:[^;]*;/);
+      if (!animMatch) continue;
+      // Parse the first time value (Ns or Nms) in the shorthand.
+      const tMatch = animMatch[0].match(/(\d+(?:\.\d+)?)(ms|s)\b/);
+      if (!tMatch) continue;
+      const value = parseFloat(tMatch[1]);
+      durationSeconds = tMatch[2] === "ms" ? value / 1000 : value;
+      break;
+    }
+    expect(durationSeconds).not.toBeNull();
+    expect(durationSeconds).toBeGreaterThanOrEqual(1.2);
+    expect(durationSeconds).toBeLessThanOrEqual(4);
+  });
+});
