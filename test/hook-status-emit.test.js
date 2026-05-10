@@ -145,3 +145,40 @@ describe("hook auto-derives working from event name", () => {
     });
   }
 });
+
+describe("hook auto-derives idle for Stop and SubagentStop", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  for (const eventName of ["Stop", "SubagentStop"]) {
+    it(`maps ${eventName} -> 'idle'`, async () => {
+      const cwd = `/idle/${eventName}`;
+      const env = {
+        PATH: process.env.PATH,
+        HOSTNAME: "hostA",
+        TMUX_PANE: `%${eventName.length}`,
+        CLAUDE_DISPLAY_URL: baseUrl,
+      };
+      const { exitCode, stderr } = await runHook({
+        env,
+        stdin: JSON.stringify({ cwd, hook_event_name: eventName }),
+      });
+      expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+      const stateRes = await fetch(`${baseUrl}/api/state`);
+      const records = await stateRes.json();
+      const rec = records.find((r) => r.id_raw === `hostA:%${eventName.length}:${cwd}`);
+      expect(rec, `no record for ${eventName}`).toBeDefined();
+      expect(rec.status).toBe("idle");
+    });
+  }
+});
