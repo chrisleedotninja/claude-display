@@ -66,3 +66,37 @@ describe("served /app.js panel-open state defaults closed and gates the surface 
     expect(body.includes("tweaks-panel-surface")).toBe(true);
   });
 });
+
+describe("served /app.js carries an open/close affordance wired to the toggle helper (Step 3)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js mentions the tweaks-panel-toggle class string", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("tweaks-panel-toggle")).toBe(true);
+  });
+
+  it("served /app.js source contains a literal <button element", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("<button")).toBe(true);
+  });
+
+  it("served /app.js wires the affordance to nextPanelOpen via an onClick (or onclick) handler", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // The affordance must reference the Step 1 helper by name in source.
+    expect(body.includes("nextPanelOpen")).toBe(true);
+    // And it must use a click-handler attribute. Either casing is acceptable
+    // because htm/Preact accept both `onClick` and `onclick`.
+    const hasClickHandler = /\bonClick\b/.test(body) || /\bonclick\b/.test(body);
+    expect(hasClickHandler).toBe(true);
+  });
+});
