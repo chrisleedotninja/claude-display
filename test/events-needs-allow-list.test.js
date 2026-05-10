@@ -75,4 +75,31 @@ describe("POST /events `needs` field — frozen seven-value allow-list", () => {
     // `undefined`, which is not what the spec means by "no needs key".
     expect(Object.hasOwn(rec, "needs")).toBe(false);
   });
+
+  it("drops an unknown-string needs value silently and still applies the rest of the payload", async () => {
+    const postRes = await fetch(`${baseUrl}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: "badstr01",
+        id_raw: "host:pane:/cwd/badstr01",
+        status: "working",
+        needs: "make-coffee", // string, but not in the seven-value allow-list
+      }),
+    });
+    // "Drop, do not reject" — the post still succeeds, no 4xx.
+    expect([200, 202]).toContain(postRes.status);
+
+    const records = await (await fetch(`${baseUrl}/api/state`)).json();
+    expect(records).toHaveLength(1);
+    const rec = records[0];
+
+    // The rest of the payload still round-trips.
+    expect(rec.id).toBe("badstr01");
+    expect(rec.id_raw).toBe("host:pane:/cwd/badstr01");
+    expect(rec.status).toBe("working");
+
+    // No `needs` key on the record — the unknown string was dropped silently.
+    expect(Object.hasOwn(rec, "needs")).toBe(false);
+  });
 });
