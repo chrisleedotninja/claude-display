@@ -426,6 +426,15 @@ export async function mount(rootEl) {
   // the same hook-less reason as `panelOpen` and `records`. Toggled via
   // `toggleActiveTone` which always allocates a fresh Set.
   let activeTones = new Set(TONE_GROUPS);
+  // Tweaks-panel field-visibility toggles (chore [037]). Default on first
+  // load is "all five toggles on" (AC5) — every metadata field renders for
+  // every card whose record carries it. The Set lives in closure-level
+  // state for the same hook-less reason as `panelOpen`, `records`, and
+  // `activeTones`. Toggled via `toggleVisibleField` which always allocates
+  // a fresh Set; field-stripping happens in `draw()` via `stripHiddenFields`
+  // so the existing absent-value-omits-the-element branches in `Card`
+  // (chore [003]) stay untouched and AC4 holds automatically.
+  let visibleFields = new Set(["repo", "branch", "session", "desktop", "elapsed"]);
   // Wrap the render call through the View Transitions API when available so
   // a reorder-by-recency animates in place rather than full-page repainting
   // (chore [015]). In non-DOM environments (unit tests) `withReorderTransition`
