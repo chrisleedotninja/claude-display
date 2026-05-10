@@ -90,6 +90,17 @@ export function cardsFromState(records, now = Date.now()) {
     });
 }
 
+// Pure helper: compute the next Tweaks-panel open state from the previous
+// one. The panel's documented start state is closed (`false`); any
+// non-boolean previous value (undefined / null / number / string / object)
+// is treated as `false` so that a first-tap from an uninitialised state
+// opens the panel. Pure so toggle correctness is verifiable without a DOM.
+// See chore [033].
+export function nextPanelOpen(prev) {
+  const prevBool = prev === true;
+  return !prevBool;
+}
+
 // Pure upsert: given the previous cards array and one incoming record,
 // return a new cards array. If the record's id already appears in cards,
 // the matching entry is replaced in place (same index, same length); if
@@ -146,29 +157,54 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   `;
 }
 
-function Dashboard({ cards }) {
-  if (cards.length === 0) {
-    return html`<div class="empty-state">No sessions yet.</div>`;
-  }
+function Dashboard({ cards, panelOpen, onTogglePanel }) {
+  const cardsTree =
+    cards.length === 0
+      ? html`<div class="empty-state">No sessions yet.</div>`
+      : html`
+          <div class="cards">
+            ${cards.map(
+              (c) =>
+                html`<${Card}
+                  key=${c.id}
+                  id=${c.id}
+                  status=${c.status}
+                  color=${c.color}
+                  icon=${c.icon}
+                  label=${c.label}
+                  repo=${c.repo}
+                  branch=${c.branch}
+                  session_label=${c.session_label}
+                  desktop=${c.desktop}
+                  elapsed=${c.elapsed}
+                  subagents=${c.subagents}
+                />`,
+            )}
+          </div>
+        `;
+  // Tweaks panel scaffolding (chore [033]). The panel-open state lives in
+  // the dashboard's local UI state — see `mount()` below — and the surface
+  // is conditional on `panelOpen` so the panel is absent from the markup
+  // when closed. Subsequent steps in this chore will add the header and body.
+  const panelSurface = panelOpen
+    ? html`
+        <div class="tweaks-panel-surface">
+          <h2 class="tweaks-panel-header">Tweaks</h2>
+          <div class="tweaks-panel-body"></div>
+        </div>
+      `
+    : null;
   return html`
-    <div class="cards">
-      ${cards.map(
-        (c) =>
-          html`<${Card}
-            key=${c.id}
-            id=${c.id}
-            status=${c.status}
-            color=${c.color}
-            icon=${c.icon}
-            label=${c.label}
-            repo=${c.repo}
-            branch=${c.branch}
-            session_label=${c.session_label}
-            desktop=${c.desktop}
-            elapsed=${c.elapsed}
-            subagents=${c.subagents}
-          />`,
-      )}
+    <div>
+      <button
+        type="button"
+        class="tweaks-panel-toggle"
+        onClick=${onTogglePanel}
+      >
+        Tweaks
+      </button>
+      ${panelSurface}
+      ${cardsTree}
     </div>
   `;
 }
@@ -288,15 +324,32 @@ export function withReorderTransition(viewTransitions, renderFn) {
 
 export async function mount(rootEl) {
   let records = [];
+  // Tweaks panel local UI state (chore [033]). Closure-level boolean,
+  // toggled via `nextPanelOpen` and a `draw()` re-render — mirrors the
+  // existing `records` pattern because the vendored Preact ships without
+  // hooks. Defaults closed (`false`).
+  let panelOpen = false;
   // Wrap the render call through the View Transitions API when available so
   // a reorder-by-recency animates in place rather than full-page repainting
   // (chore [015]). In non-DOM environments (unit tests) `withReorderTransition`
   // falls back to a synchronous call.
+  const togglePanel = () => {
+    panelOpen = nextPanelOpen(panelOpen);
+    draw();
+  };
   const draw = () => {
     const cards = cardsFromState(records, Date.now());
     return withReorderTransition(
       typeof document !== "undefined" ? document : null,
-      () => render(html`<${Dashboard} cards=${cards} />`, rootEl),
+      () =>
+        render(
+          html`<${Dashboard}
+            cards=${cards}
+            panelOpen=${panelOpen}
+            onTogglePanel=${togglePanel}
+          />`,
+          rootEl,
+        ),
     );
   };
   const res = await fetch("/api/state");

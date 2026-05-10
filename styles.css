@@ -140,3 +140,42 @@ body {
     animation: none;
   }
 }
+
+/* Tweaks panel scaffolding (chore [033]). Visual treatment locked in this
+ * slice so sister slices [036], [037] don't re-fight CSS. All colours source
+ * the existing :root Tokyo Night Storm palette vars — no new top-level hex
+ * literals are introduced for the panel surface, header, body, or toggle. */
+.tweaks-panel-toggle {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 13px;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+}
+
+.tweaks-panel-surface {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+  max-width: 36rem;
+}
+
+.tweaks-panel-header {
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.4rem;
+}
+
+.tweaks-panel-body {
+  color: var(--muted);
+  font-size: 13px;
+}
