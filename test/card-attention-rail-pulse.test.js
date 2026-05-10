@@ -249,3 +249,75 @@ describe("non-attention cards never render a rail and never pulse (negative)", (
     }
   });
 });
+
+describe("prefers-reduced-motion: reduce disables the pulse but keeps the rail", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Helper: extract the inner body of the @media (prefers-reduced-motion: reduce)
+  // block. Walks the file character-by-character to find the matching closing
+  // brace for the at-rule (since the at-rule's body itself contains nested
+  // rules with their own braces, a regex won't suffice).
+  function extractReducedMotionBody(css) {
+    const startRe = /@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{/i;
+    const startMatch = css.match(startRe);
+    if (!startMatch) return null;
+    const start = startMatch.index + startMatch[0].length;
+    let depth = 1;
+    for (let i = start; i < css.length; i++) {
+      const c = css[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) return css.slice(start, i);
+      }
+    }
+    return null;
+  }
+
+  it("contains a @media (prefers-reduced-motion: reduce) block", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const inner = extractReducedMotionBody(body);
+    expect(inner).not.toBeNull();
+  });
+
+  it("inside the reduced-motion block, .card.is-attention's animation is none", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const inner = extractReducedMotionBody(body);
+    expect(inner).not.toBeNull();
+    // Must contain a .card.is-attention rule whose animation (or animation-name)
+    // declaration value is `none`.
+    const ruleRe = /\.card\.is-attention\s*\{([^}]*)\}/g;
+    let nuked = false;
+    let m;
+    while ((m = ruleRe.exec(inner)) !== null) {
+      if (
+        /\banimation\s*:\s*none\b/.test(m[1]) ||
+        /\banimation-name\s*:\s*none\b/.test(m[1])
+      ) {
+        nuked = true;
+      }
+    }
+    expect(nuked).toBe(true);
+  });
+
+  it("the reduced-motion block does not null out the rail", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const inner = extractReducedMotionBody(body);
+    expect(inner).not.toBeNull();
+    // The reduced-motion block must not mention the word `rail` (no rule that
+    // changes border-left, etc., is keyed off rail) and must not override
+    // --card-status-color (which would change the per-status color).
+    expect(/rail/i.test(inner)).toBe(false);
+    expect(/--card-status-color\s*:/.test(inner)).toBe(false);
+  });
+});
