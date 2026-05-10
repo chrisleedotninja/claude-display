@@ -426,6 +426,20 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
         <div class="tweaks-panel-surface">
           <h2 class="tweaks-panel-header">Tweaks</h2>
           <div class="tweaks-panel-body">
+            ${h("span", { class: "tweaks-panel-section-label" }, "Appearance")}
+            ${h(
+              "button",
+              {
+                type: "button",
+                class: anim
+                  ? "tweaks-anim-toggle is-on"
+                  : "tweaks-anim-toggle",
+                "aria-pressed": anim ? "true" : "false",
+                onClick: onToggleAnim,
+              },
+              "animation",
+            )}
+            ${h("span", { class: "tweaks-panel-section-label" }, "Filters")}
             ${["attention", "active", "success", "neutral"].map((tone) =>
               h(
                 "button",
@@ -441,6 +455,7 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
                 tone,
               ),
             )}
+            ${h("span", { class: "tweaks-panel-section-label" }, "Metadata fields")}
             ${["repo", "branch", "session", "desktop", "elapsed"].map((field) =>
               h(
                 "button",
@@ -455,18 +470,6 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
                 },
                 field,
               ),
-            )}
-            ${h(
-              "button",
-              {
-                type: "button",
-                class: anim
-                  ? "tweaks-anim-toggle is-on"
-                  : "tweaks-anim-toggle",
-                "aria-pressed": anim ? "true" : "false",
-                onClick: onToggleAnim,
-              },
-              "animation",
             )}
           </div>
         </div>
