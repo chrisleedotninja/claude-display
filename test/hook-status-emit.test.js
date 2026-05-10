@@ -299,3 +299,35 @@ describe("Notification without permission message auto-derives waiting", () => {
     expect(records[0].status).toBe("waiting");
   });
 });
+
+describe("SessionEnd produces no POST", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("exits 0 and creates no record when hook_event_name is SessionEnd and no override is set", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%14",
+      CLAUDE_DISPLAY_URL: baseUrl,
+    };
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({ cwd: "/end", hook_event_name: "SessionEnd" }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toEqual([]);
+  });
+});
