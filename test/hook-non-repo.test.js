@@ -48,7 +48,7 @@ describe("hook with cwd outside any git repo", () => {
     };
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd: nonRepoDir }),
+      stdin: JSON.stringify({ cwd: nonRepoDir, hook_event_name: "SessionStart" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
