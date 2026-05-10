@@ -165,3 +165,50 @@ describe("CLAUDE_DISPLAY_NEEDS override is dropped on non-attention-state events
     }
   });
 });
+
+describe("invalid CLAUDE_DISPLAY_NEEDS falls through silently", () => {
+  // ADR 0003: unset, empty, or any string outside the seven-value enum is
+  // silently treated as if not set. No error is raised. The hook still emits
+  // the rest of its payload normally; on an attention-state status with no
+  // auto-derivation match (Notification + non-permission message → waiting),
+  // `needs` MUST NOT appear on the wire — the unknown string never leaks.
+  for (const [label, envOverride] of [
+    ["unset", null],
+    ["empty string", ""],
+    ["unknown string", "make-coffee"],
+  ]) {
+    it(`emits no needs when CLAUDE_DISPLAY_NEEDS is ${label} on a Notification → waiting event`, async () => {
+      const cap = createCaptureServer();
+      try {
+        const env = {
+          PATH: process.env.PATH,
+          HOSTNAME: "hostA",
+          TMUX_PANE: `%fall${label.length}`,
+          CLAUDE_DISPLAY_URL: cap.baseUrl,
+        };
+        if (envOverride !== null) {
+          env.CLAUDE_DISPLAY_NEEDS = envOverride;
+        }
+        const { exitCode, stderr } = await runHook({
+          env,
+          // Notification with a non-permission message → status 'waiting'
+          // (attention-state, so the filter would *attach* needs if any value
+          // had been derived). Auto-derivation table has no row for this case,
+          // so the only way needs could appear is via the override — which is
+          // invalid in each of these three cases.
+          stdin: JSON.stringify({
+            cwd: `/fallthrough/${label.replace(/\s+/g, "-")}`,
+            hook_event_name: "Notification",
+            message: "Claude is waiting for your input",
+          }),
+        });
+        expect(exitCode, `stderr: ${stderr}`).toBe(0);
+        expect(cap.captured).toHaveLength(1);
+        expect(cap.captured[0].status).toBe("waiting");
+        expect(Object.hasOwn(cap.captured[0], "needs")).toBe(false);
+      } finally {
+        cap.stop();
+      }
+    });
+  }
+});
