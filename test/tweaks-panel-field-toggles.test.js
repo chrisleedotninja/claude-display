@@ -400,3 +400,15 @@ describe("Card body is unaffected by field-toggle wiring (Step 7, AC4)", () => {
     }
   });
 });
+
+describe("server-state isolation: field-toggle wiring stays client-side (Step 8, AC5)", () => {
+  it("server.js source contains no reference to visibleFields, stripHiddenFields, toggleVisibleField, or tweaks-field-toggle", async () => {
+    const path = require("node:path");
+    const here = path.resolve(__dirname, "..");
+    const serverSrc = await Bun.file(path.join(here, "server.js")).text();
+    expect(serverSrc.includes("visibleFields")).toBe(false);
+    expect(serverSrc.includes("stripHiddenFields")).toBe(false);
+    expect(serverSrc.includes("toggleVisibleField")).toBe(false);
+    expect(serverSrc.includes("tweaks-field-toggle")).toBe(false);
+  });
+});
