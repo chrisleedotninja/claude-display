@@ -71,7 +71,7 @@ describe("hook posts desktop", () => {
 
       const { exitCode, stderr } = await runHook({
         env,
-        stdin: JSON.stringify({ cwd: "/some/dir" }),
+        stdin: JSON.stringify({ cwd: "/some/dir", hook_event_name: "SessionStart" }),
       });
       expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
@@ -95,7 +95,7 @@ describe("hook posts desktop", () => {
 
       const { exitCode, stderr } = await runHook({
         env,
-        stdin: JSON.stringify({ cwd: "/some/dir" }),
+        stdin: JSON.stringify({ cwd: "/some/dir", hook_event_name: "SessionStart" }),
       });
       expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
@@ -123,7 +123,7 @@ describe("hook posts desktop", () => {
       const start = Date.now();
       const { exitCode, stderr } = await runHook({
         env,
-        stdin: JSON.stringify({ cwd: "/some/dir" }),
+        stdin: JSON.stringify({ cwd: "/some/dir", hook_event_name: "SessionStart" }),
       });
       const elapsed = Date.now() - start;
       expect(exitCode, `stderr: ${stderr}`).toBe(0);
@@ -152,7 +152,7 @@ describe("hook posts desktop", () => {
       const start = Date.now();
       const { exitCode, stderr } = await runHook({
         env,
-        stdin: JSON.stringify({ cwd: "/some/dir" }),
+        stdin: JSON.stringify({ cwd: "/some/dir", hook_event_name: "SessionStart" }),
       });
       const elapsed = Date.now() - start;
       expect(exitCode, `stderr: ${stderr}`).toBe(0);
@@ -173,7 +173,7 @@ describe("hook posts desktop", () => {
         TMUX_PANE: "%5",
         CLAUDE_DISPLAY_URL: baseUrl,
       };
-      const stdin = JSON.stringify({ cwd: "/p" });
+      const stdin = JSON.stringify({ cwd: "/p", hook_event_name: "SessionStart" });
 
       writeShim(shimDir, "aerospace", `#!/usr/bin/env bash\necho "1"\n`);
       const first = await runHook({ env, stdin });

@@ -57,7 +57,12 @@ describe("served /app.js card-desktop shape", () => {
   it("does not include 'unknown' as a desktop placeholder fallback", async () => {
     const res = await fetch(`${baseUrl}/app.js`);
     const body = await res.text();
-    expect(body.includes("unknown")).toBe(false);
+    // Match the sibling card-repo/branch convention: a raw substring check
+    // on "unknown" produces a false positive against the documentation
+    // comment in app.js (chore [022] AC2 reference). A real placeholder
+    // fallback would appear as a quoted string literal, e.g. `|| "unknown"`,
+    // so anchor on quoted forms only.
+    expect(/["']unknown["']/.test(body)).toBe(false);
   });
 
   it("does not render a literal '-' placeholder inside card-desktop", async () => {

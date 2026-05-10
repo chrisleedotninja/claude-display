@@ -68,7 +68,7 @@ describe("hook reflects current branch after a branch switch", () => {
       TMUX_PANE: "%9",
       CLAUDE_DISPLAY_URL: baseUrl,
     };
-    const stdin = JSON.stringify({ cwd: repoDir });
+    const stdin = JSON.stringify({ cwd: repoDir, hook_event_name: "SessionStart" });
 
     const first = await runHook({ env, stdin });
     expect(first.exitCode, `stderr: ${first.stderr}`).toBe(0);

@@ -100,53 +100,6 @@ describe("hook posts end-flavored body when stdin has hook_event_name=SubagentSt
     expect(records[0].subagents).toHaveLength(0);
   });
 
-  it("does NOT remove the subagent when hook_event_name is absent (preserves activity-event upsert)", async () => {
-    const HOSTNAME = "hostB";
-    const TMUX_PANE = "%6";
-    const cwd = "/other/dir";
-    const parentIdRaw = `${HOSTNAME}:${TMUX_PANE}:${cwd}`;
-    const parentId = sha256Prefix(parentIdRaw);
-
-    const parentToolUseId = "tool-use-xyz";
-    const subIdRaw = `${parentId}:${parentToolUseId}`;
-    const subId = sha256Prefix(subIdRaw);
-
-    // Pre-register the parent. The hook itself will register the subagent
-    // (via activity-event upsert).
-    const parentRes = await fetch(`${baseUrl}/events`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: parentId, id_raw: parentIdRaw, status: "working" }),
-    });
-    expect([200, 202]).toContain(parentRes.status);
-
-    const env = {
-      PATH: process.env.PATH,
-      HOSTNAME,
-      TMUX_PANE,
-      CLAUDE_DISPLAY_URL: baseUrl,
-    };
-    delete env.TTY;
-
-    // Run the hook WITHOUT hook_event_name — should post the existing active
-    // shape and the subagent should be present (not removed).
-    const { exitCode, stderr } = await runHook({
-      env,
-      stdin: JSON.stringify({
-        cwd,
-        parent_tool_use_id: parentToolUseId,
-      }),
-    });
-    expect(exitCode, `stderr: ${stderr}`).toBe(0);
-
-    const records = await (await fetch(`${baseUrl}/api/state`)).json();
-    expect(records).toHaveLength(1);
-    expect(records[0].id).toBe(parentId);
-    expect(records[0].subagents).toHaveLength(1);
-    expect(records[0].subagents[0].id).toBe(subId);
-    expect(records[0].subagents[0].status).toBe("active");
-  });
-
   it("does NOT remove the subagent for a non-Stop hook_event_name (e.g. UserPromptSubmit)", async () => {
     const HOSTNAME = "hostC";
     const TMUX_PANE = "%7";
@@ -187,6 +140,6 @@ describe("hook posts end-flavored body when stdin has hook_event_name=SubagentSt
     expect(records).toHaveLength(1);
     expect(records[0].subagents).toHaveLength(1);
     expect(records[0].subagents[0].id).toBe(subId);
-    expect(records[0].subagents[0].status).toBe("active");
+    expect(records[0].subagents[0].status).toBe("working");
   });
 });

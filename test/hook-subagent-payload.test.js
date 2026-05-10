@@ -70,7 +70,7 @@ describe("hook posts subagent-flavored body when stdin has parent_tool_use_id", 
 
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd, parent_tool_use_id: parentToolUseId }),
+      stdin: JSON.stringify({ cwd, parent_tool_use_id: parentToolUseId, hook_event_name: "UserPromptSubmit" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
@@ -82,7 +82,7 @@ describe("hook posts subagent-flavored body when stdin has parent_tool_use_id", 
     const sub = parent.subagents[0];
     expect(sub.id).toBe(subId);
     expect(sub.id_raw).toBe(subIdRaw);
-    expect(sub.status).toBe("active");
+    expect(sub.status).toBe("working");
   });
 
   it("leaves the top-level branch unchanged when stdin parent_tool_use_id is absent", async () => {
@@ -102,13 +102,13 @@ describe("hook posts subagent-flavored body when stdin has parent_tool_use_id", 
 
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd }),
+      stdin: JSON.stringify({ cwd, hook_event_name: "SessionStart" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
     const records = await (await fetch(`${baseUrl}/api/state`)).json();
     expect(records).toHaveLength(1);
     expect(records[0].subagents).toHaveLength(0);
-    expect(records[0].status).toBe("active");
+    expect(records[0].status).toBe("idle");
   });
 });
