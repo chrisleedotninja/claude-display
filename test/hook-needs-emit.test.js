@@ -296,3 +296,69 @@ describe("Notification + permission message auto-derives needs='approve-tool'", 
     }
   });
 });
+
+describe("resilience and identity preserved with needs in the mix", () => {
+  // Closed high port outside the dynamic range (mirrors test/hook-resilience.test.js).
+  const CLOSED_PORT = 7;
+
+  it("exits 0 within ~2s when the server is unreachable, even with CLAUDE_DISPLAY_NEEDS set", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%9",
+      CLAUDE_DISPLAY_URL: `http://127.0.0.1:${CLOSED_PORT}`,
+      CLAUDE_DISPLAY_STATUS: "approval",
+      CLAUDE_DISPLAY_NEEDS: "approve-tool",
+    };
+
+    const start = Date.now();
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({
+        cwd: "/q-needs",
+        hook_event_name: "Notification",
+        message: "Claude needs your permission to use Bash",
+      }),
+    });
+    const elapsed = Date.now() - start;
+
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+    // curl --max-time 1 --connect-timeout 1 caps the network wait at ~1s;
+    // 2000ms gives plenty of slack for the bun spawn + shasum + JSON build.
+    expect(elapsed).toBeLessThan(2000);
+  });
+
+  it("per-session id is identical with and without CLAUDE_DISPLAY_NEEDS for the same HOSTNAME/TMUX_PANE/cwd", async () => {
+    const cap = createCaptureServer();
+    try {
+      const sharedCwd = "/identity/needs-stable";
+      const baseEnv = {
+        PATH: process.env.PATH,
+        HOSTNAME: "hostA",
+        TMUX_PANE: "%identity",
+        CLAUDE_DISPLAY_URL: cap.baseUrl,
+        CLAUDE_DISPLAY_STATUS: "approval",
+      };
+
+      // Run 1: needs unset.
+      const r1 = await runHook({
+        env: baseEnv,
+        stdin: JSON.stringify({ cwd: sharedCwd, hook_event_name: "PreToolUse" }),
+      });
+      expect(r1.exitCode, `stderr: ${r1.stderr}`).toBe(0);
+
+      // Run 2: same identity, with a valid needs override.
+      const r2 = await runHook({
+        env: { ...baseEnv, CLAUDE_DISPLAY_NEEDS: "approve-tool" },
+        stdin: JSON.stringify({ cwd: sharedCwd, hook_event_name: "PreToolUse" }),
+      });
+      expect(r2.exitCode, `stderr: ${r2.stderr}`).toBe(0);
+
+      expect(cap.captured).toHaveLength(2);
+      expect(cap.captured[0].id).toBe(cap.captured[1].id);
+      expect(cap.captured[0].id_raw).toBe(cap.captured[1].id_raw);
+    } finally {
+      cap.stop();
+    }
+  });
+});
