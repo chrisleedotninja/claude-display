@@ -262,3 +262,76 @@ describe("served /app.js panel renders cleanly when empty (Step 6, AC5)", () => 
     expect(gateRe.test(body)).toBe(false);
   });
 });
+
+describe("served /styles.css panel rules source palette vars and add no new hex (Step 7)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Collect every `.<selector> { ... }` block whose selector list mentions
+  // the given class name. Returns the inner declaration-block strings.
+  function blocksFor(css, className) {
+    const blocks = [];
+    const re = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = re.exec(css)) !== null) {
+      const sel = m[1].trim();
+      if (sel.startsWith("@")) continue;
+      if (sel.includes(`.${className}`)) blocks.push(m[2]);
+    }
+    return blocks;
+  }
+
+  it("each of the four panel selectors appears with at least one rule block", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    for (const cls of [
+      "tweaks-panel-surface",
+      "tweaks-panel-header",
+      "tweaks-panel-body",
+      "tweaks-panel-toggle",
+    ]) {
+      const blocks = blocksFor(body, cls);
+      expect(blocks.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("every declaration block for the four panel selectors uses at least one var(--…) reference", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    for (const cls of [
+      "tweaks-panel-surface",
+      "tweaks-panel-header",
+      "tweaks-panel-body",
+      "tweaks-panel-toggle",
+    ]) {
+      const blocks = blocksFor(body, cls);
+      expect(blocks.length).toBeGreaterThan(0);
+      for (const block of blocks) {
+        expect(/var\(\s*--[\w-]+\s*\)/.test(block)).toBe(true);
+      }
+    }
+  });
+
+  it("no new top-level #xxxxxx hex literal is introduced inside the four panel selectors' declaration blocks", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    for (const cls of [
+      "tweaks-panel-surface",
+      "tweaks-panel-header",
+      "tweaks-panel-body",
+      "tweaks-panel-toggle",
+    ]) {
+      const blocks = blocksFor(body, cls);
+      for (const block of blocks) {
+        // Reject any literal of the form #abc or #aabbcc (3- or 6-digit hex).
+        expect(/#[0-9a-fA-F]{3,8}\b/.test(block)).toBe(false);
+      }
+    }
+  });
+});
