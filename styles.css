@@ -87,3 +87,9 @@ body {
     box-shadow: -6px 0 12px -2px var(--card-status-color);
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .card.is-attention {
+    animation: none;
+  }
+}
