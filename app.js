@@ -24,11 +24,16 @@ export function cardsFromState(records) {
   });
 }
 
-function Card({ id, status }) {
+function Card({ id, status, color, icon, label }) {
   return html`
-    <div class="card">
+    <div
+      class="card"
+      data-status=${status}
+      style=${`--card-status-color: ${color}`}
+    >
       <div class="card-id">${id}</div>
-      <div class="card-status">${status}</div>
+      <span class="card-status-icon">${icon}</span>
+      <div class="card-status">${label}</div>
     </div>
   `;
 }
@@ -39,7 +44,15 @@ function Dashboard({ cards }) {
   }
   return html`
     <div class="cards">
-      ${cards.map((c) => html`<${Card} id=${c.id} status=${c.status} />`)}
+      ${cards.map(
+        (c) => html`<${Card}
+          id=${c.id}
+          status=${c.status}
+          color=${c.color}
+          icon=${c.icon}
+          label=${c.label}
+        />`,
+      )}
     </div>
   `;
 }
