@@ -47,4 +47,32 @@ describe("POST /events `needs` field — frozen seven-value allow-list", () => {
       expect(rec.needs).toBe(c.needs);
     }
   });
+
+  it("produces a record with no `needs` key when the field is absent", async () => {
+    const postRes = await fetch(`${baseUrl}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: "noneeds1",
+        id_raw: "host:pane:/cwd/noneeds1",
+        status: "working",
+      }),
+    });
+    expect([200, 202]).toContain(postRes.status);
+
+    const records = await (await fetch(`${baseUrl}/api/state`)).json();
+    expect(records).toHaveLength(1);
+    const rec = records[0];
+
+    // The rest of the payload still round-trips.
+    expect(rec.id).toBe("noneeds1");
+    expect(rec.id_raw).toBe("host:pane:/cwd/noneeds1");
+    expect(rec.status).toBe("working");
+
+    // Absence is precise: no `needs` key on the record at all (not `null`,
+    // not explicitly `undefined`). `Object.hasOwn` is the right check —
+    // `rec.needs === undefined` would also pass for an explicitly-set
+    // `undefined`, which is not what the spec means by "no needs key".
+    expect(Object.hasOwn(rec, "needs")).toBe(false);
+  });
 });
