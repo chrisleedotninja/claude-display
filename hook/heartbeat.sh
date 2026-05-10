@@ -65,14 +65,35 @@ url="${CLAUDE_DISPLAY_URL:-http://127.0.0.1:7878}/events"
 # See docs/decisions/0002-elapsed-time-anchor.md.
 event_at="$(bun -e 'process.stdout.write(String(Date.now()))')"
 
+# Capture the focused aerospace workspace at fire time (macOS-only WM). If the
+# binary is missing, slow, or errors, the value is empty and the field is
+# omitted from the payload — never a placeholder. The 500ms cap keeps the hook
+# well under its overall ~2s budget even if curl below also times out.
+desktop="$(bun -e '
+  if (!Bun.which("aerospace")) { process.exit(0); }
+  const proc = Bun.spawn(["aerospace", "list-workspaces", "--focused"], {
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  const killer = setTimeout(() => { try { proc.kill(); } catch {} }, 500);
+  const exitCode = await proc.exited;
+  clearTimeout(killer);
+  if (exitCode !== 0) process.exit(0);
+  const out = (await new Response(proc.stdout).text()).trim();
+  if (out.length > 0) process.stdout.write(out);
+')"
+
 body="$(bun -e '
-  const [id, id_raw, status, repo, branch, session_label, event_at] = process.argv.slice(1);
+  const [id, id_raw, status, repo, branch, session_label, desktop, event_at] = process.argv.slice(1);
   const payload = { id, id_raw, status, repo, branch, event_at: Number(event_at) };
   if (typeof session_label === "string" && session_label.length > 0) {
     payload.session_label = session_label;
   }
+  if (typeof desktop === "string" && desktop.length > 0) {
+    payload.desktop = desktop;
+  }
   process.stdout.write(JSON.stringify(payload));
-' "$id" "$id_raw" "active" "$repo" "$branch" "$session_label" "$event_at")"
+' "$id" "$id_raw" "active" "$repo" "$branch" "$session_label" "$desktop" "$event_at")"
 
 curl --silent --show-error \
   --max-time 1 --connect-timeout 1 \

@@ -65,6 +65,11 @@ body {
   font-size: 13px;
 }
 
+.card-desktop {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .card-elapsed {
   color: var(--muted);
   font-size: 13px;

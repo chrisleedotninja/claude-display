@@ -26,7 +26,10 @@ export function formatElapsed(ms) {
 // repo/branch are carried through when the record supplies them; absent or
 // empty values flow through as empty strings, and the renderer omits the
 // element entirely rather than substituting a placeholder. (See chore [022] /
-// AC2: never `unknown` or `-` for missing repo/branch.)
+// AC2: never `unknown` or `-` for missing repo/branch.) `session_label`,
+// `desktop`, and `elapsed` are included only when the record carries a
+// non-empty string — the dashboard never shows a placeholder when the value
+// is absent.
 export function cardsFromState(records, now = Date.now()) {
   return records.map((r) => {
     const card = {
@@ -37,6 +40,9 @@ export function cardsFromState(records, now = Date.now()) {
     };
     if (typeof r.session_label === "string" && r.session_label.length > 0) {
       card.session_label = r.session_label;
+    }
+    if (typeof r.desktop === "string" && r.desktop.length > 0) {
+      card.desktop = r.desktop;
     }
     if (
       typeof r.event_at === "number" &&
@@ -52,8 +58,9 @@ export function cardsFromState(records, now = Date.now()) {
   });
 }
 
-function Card({ id, status, repo, branch, session_label, elapsed }) {
+function Card({ id, status, repo, branch, session_label, desktop, elapsed }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
+  const hasDesktop = typeof desktop === "string" && desktop.length > 0;
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
   return html`
     <div class="card">
@@ -61,6 +68,7 @@ function Card({ id, status, repo, branch, session_label, elapsed }) {
       ${repo ? html`<div class="card-repo">${repo}</div>` : null}
       ${branch ? html`<div class="card-branch">${branch}</div>` : null}
       ${hasLabel ? html`<div class="card-session-label">${session_label}</div>` : null}
+      ${hasDesktop ? html`<div class="card-desktop">${desktop}</div>` : null}
       ${hasElapsed ? html`<div class="card-elapsed">${elapsed}</div>` : null}
       <div class="card-status">${status}</div>
     </div>
@@ -81,6 +89,7 @@ function Dashboard({ cards }) {
             repo=${c.repo}
             branch=${c.branch}
             session_label=${c.session_label}
+            desktop=${c.desktop}
             elapsed=${c.elapsed}
           />`,
       )}
