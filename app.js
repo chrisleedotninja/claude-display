@@ -5,6 +5,7 @@
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
 import { tokensForStatus, isAttentionStatus } from "./status-tokens.js";
+import { TONE_GROUPS, filterCardsByTones } from "./status-tones.js";
 
 const html = htm.bind(h);
 
@@ -101,6 +102,22 @@ export function nextPanelOpen(prev) {
   return !prevBool;
 }
 
+// Pure helper: return a fresh Set with `tone` toggled — added if absent,
+// removed if present. Never mutates the input Set; always allocates a new
+// Set instance (mirrors the `applyEventToCards` "return a new array"
+// discipline). Unrecognized tone strings are toggled in/out as opaque
+// strings without throwing — the caller is responsible for the canonical
+// tone vocabulary (see TONE_GROUPS in status-tones.js, chore [032]).
+export function toggleActiveTone(prev, tone) {
+  const next = new Set(prev);
+  if (next.has(tone)) {
+    next.delete(tone);
+  } else {
+    next.add(tone);
+  }
+  return next;
+}
+
 // Pure upsert: given the previous cards array and one incoming record,
 // return a new cards array. If the record's id already appears in cards,
 // the matching entry is replaced in place (same index, same length); if
@@ -157,7 +174,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   `;
 }
 
-function Dashboard({ cards, panelOpen, onTogglePanel }) {
+function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone }) {
   const cardsTree =
     cards.length === 0
       ? html`<div class="empty-state">No sessions yet.</div>`
@@ -182,15 +199,41 @@ function Dashboard({ cards, panelOpen, onTogglePanel }) {
             )}
           </div>
         `;
-  // Tweaks panel scaffolding (chore [033]). The panel-open state lives in
-  // the dashboard's local UI state — see `mount()` below — and the surface
-  // is conditional on `panelOpen` so the panel is absent from the markup
-  // when closed. Subsequent steps in this chore will add the header and body.
+  // Tweaks panel surface (chores [033], [036]). The panel-open state and
+  // the active-tones Set both live in `mount()`'s closure-level UI state.
+  // Each tone-group filter control renders with the stable
+  // `tweaks-tone-filter` class plus an `is-on` modifier when its tone is
+  // currently active; clicking the control toggles its tone via
+  // `onToggleTone`.
+  // Build per-tone filter buttons via `h(...)` directly inside the surface
+  // template literal so the literal stays a single backtick block — no
+  // nested `html\`...\`` interpolations — and so the four tone-name
+  // literals plus the `onClick` wiring appear inline within the
+  // panel-body span (Step 4 served-source assertions). Each control:
+  // stable `tweaks-tone-filter` class, `is-on` modifier when active,
+  // the tone string as the visible label, and an `onClick` wired to
+  // `onToggleTone`.
   const panelSurface = panelOpen
     ? html`
         <div class="tweaks-panel-surface">
           <h2 class="tweaks-panel-header">Tweaks</h2>
-          <div class="tweaks-panel-body"></div>
+          <div class="tweaks-panel-body">
+            ${["attention", "active", "success", "neutral"].map((tone) =>
+              h(
+                "button",
+                {
+                  key: tone,
+                  type: "button",
+                  class: activeTones.has(tone)
+                    ? "tweaks-tone-filter is-on"
+                    : "tweaks-tone-filter",
+                  "aria-pressed": activeTones.has(tone) ? "true" : "false",
+                  onClick: () => onToggleTone(tone),
+                },
+                tone,
+              ),
+            )}
+          </div>
         </div>
       `
     : null;
@@ -329,6 +372,11 @@ export async function mount(rootEl) {
   // existing `records` pattern because the vendored Preact ships without
   // hooks. Defaults closed (`false`).
   let panelOpen = false;
+  // Tweaks-panel tonal filters (chore [036]). Default on first load is
+  // "all four tones active" (AC3); the Set lives in closure-level state for
+  // the same hook-less reason as `panelOpen` and `records`. Toggled via
+  // `toggleActiveTone` which always allocates a fresh Set.
+  let activeTones = new Set(TONE_GROUPS);
   // Wrap the render call through the View Transitions API when available so
   // a reorder-by-recency animates in place rather than full-page repainting
   // (chore [015]). In non-DOM environments (unit tests) `withReorderTransition`
@@ -337,8 +385,12 @@ export async function mount(rootEl) {
     panelOpen = nextPanelOpen(panelOpen);
     draw();
   };
+  const toggleTone = (tone) => {
+    activeTones = toggleActiveTone(activeTones, tone);
+    draw();
+  };
   const draw = () => {
-    const cards = cardsFromState(records, Date.now());
+    const cards = filterCardsByTones(cardsFromState(records, Date.now()), activeTones);
     return withReorderTransition(
       typeof document !== "undefined" ? document : null,
       () =>
@@ -347,6 +399,8 @@ export async function mount(rootEl) {
             cards=${cards}
             panelOpen=${panelOpen}
             onTogglePanel=${togglePanel}
+            activeTones=${activeTones}
+            onToggleTone=${toggleTone}
           />`,
           rootEl,
         ),
