@@ -269,44 +269,45 @@ body {
   animation: none;
 }
 
-/* Tweaks anim toggle (chore [051]). Mirrors .tweaks-field-toggle and
+/* Tweaks anim toggle (chore [051], reskinned [053]). Mirrors .tweaks-field-toggle and
  * .tweaks-tone-filter visual language so the three control families share
- * appearance in the panel body. */
+ * appearance in the panel body. All declarations use --tn-* palette vars. */
 .tweaks-anim-toggle {
-  background: var(--bg);
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: var(--tn-surface-2);
+  color: var(--tn-muted);
+  border: 1px solid var(--tn-rule);
+  border-radius: 100px;
   padding: 0.3rem 0.7rem;
   font-size: 13px;
+  font-family: var(--font-mono);
   cursor: pointer;
 }
 
 .tweaks-anim-toggle.is-on {
-  background: var(--accent);
-  color: var(--bg);
-  border-color: var(--accent);
+  background: var(--c-active);
+  color: var(--tn-bg-dark);
+  border-color: var(--c-active);
 }
 
-/* Tweaks panel scaffolding (chore [033]). Visual treatment locked in this
- * slice so sister slices [036], [037] don't re-fight CSS. All colours source
- * the existing :root Tokyo Night Storm palette vars — no new top-level hex
- * literals are introduced for the panel surface, header, body, or toggle. */
+/* Tweaks panel scaffolding (chore [033], reskinned [053]). Mission-board
+ * aesthetic: deep panel surface, rule borders, mono section labels.
+ * All colours source --tn-* palette vars — no hex literals introduced. */
 .tweaks-panel-toggle {
-  background: var(--bg);
-  color: var(--fg);
-  border: 1px solid var(--border);
+  background: var(--tn-surface);
+  color: var(--tn-fg);
+  border: 1px solid var(--tn-rule);
   border-radius: 6px;
   padding: 0.4rem 0.8rem;
   font-size: 13px;
+  font-family: var(--font-mono);
   cursor: pointer;
   margin-bottom: 0.75rem;
 }
 
 .tweaks-panel-surface {
-  background: var(--bg);
-  color: var(--fg);
-  border: 1px solid var(--border);
+  background: var(--tn-bg-dark);
+  color: var(--tn-fg);
+  border: 1px solid var(--tn-rule);
   border-radius: 8px;
   padding: 1rem 1.25rem;
   margin-bottom: 0.75rem;
@@ -314,62 +315,72 @@ body {
 }
 
 .tweaks-panel-header {
-  color: var(--fg);
+  color: var(--tn-fg);
   font-size: 14px;
   font-weight: 600;
+  font-family: var(--font-mono);
   margin: 0 0 0.5rem 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--tn-rule);
   padding-bottom: 0.4rem;
 }
 
 .tweaks-panel-body {
-  color: var(--muted);
+  color: var(--tn-muted);
   font-size: 13px;
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
 }
 
-/* Per-tone filter controls (chore [036]). Each control sits in the panel
- * body with a stable class plus an `is-on` modifier so the on/off state is
- * visually unambiguous. All declarations source the existing :root Tokyo
- * Night Storm palette vars — no new top-level hex literals are introduced. */
+/* Section label dividers inside the tweaks panel body (chore [053]). */
+.tweaks-panel-section-label {
+  display: block;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--tn-faint);
+  margin-top: 0.4rem;
+}
+
+/* Per-tone filter controls (chore [036], reskinned [053]). Pill shape with
+ * mission-board surface tokens. All declarations use --tn-* palette vars. */
 .tweaks-tone-filter {
-  background: var(--bg);
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: var(--tn-surface-2);
+  color: var(--tn-muted);
+  border: 1px solid var(--tn-rule);
+  border-radius: 100px;
   padding: 0.3rem 0.7rem;
   font-size: 13px;
+  font-family: var(--font-mono);
   cursor: pointer;
 }
 
 .tweaks-tone-filter.is-on {
-  background: var(--accent);
-  color: var(--bg);
-  border-color: var(--accent);
+  background: var(--c-active);
+  color: var(--tn-bg-dark);
+  border-color: var(--c-active);
 }
 
-/* Per-field visibility toggles (chore [037]). Each control sits alongside
- * the tone filters in the panel body with a stable class plus an `is-on`
- * modifier so the on/off state is visually unambiguous. All declarations
- * source the existing :root Tokyo Night Storm palette vars — no new
- * top-level hex literals are introduced. Mirrors `.tweaks-tone-filter`
- * so the two control families share visual language. */
+/* Per-field visibility toggles (chore [037], reskinned [053]). Mirrors
+ * .tweaks-tone-filter so the two control families share visual language.
+ * All declarations use --tn-* palette vars — no hex literals. */
 .tweaks-field-toggle {
-  background: var(--bg);
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: var(--tn-surface-2);
+  color: var(--tn-muted);
+  border: 1px solid var(--tn-rule);
+  border-radius: 100px;
   padding: 0.3rem 0.7rem;
   font-size: 13px;
+  font-family: var(--font-mono);
   cursor: pointer;
 }
 
 .tweaks-field-toggle.is-on {
-  background: var(--accent);
-  color: var(--bg);
-  border-color: var(--accent);
+  background: var(--c-active);
+  color: var(--tn-bg-dark);
+  border-color: var(--c-active);
 }
 
 /* "Needs from you" tag (chore [038]). Rendered only on attention-state cards
