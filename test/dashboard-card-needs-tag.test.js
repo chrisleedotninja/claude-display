@@ -1,6 +1,7 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { cardsFromState } from "../app.js";
 import { NEEDS_TOKENS } from "../needs-tokens.js";
+import { createServer } from "../server.js";
 
 describe("cardsFromState needs_tag projection — attention statuses + recognized needs", () => {
   it("attaches the frozen NEEDS_TOKENS entry by identity for an approval card with needs=approve-tool", () => {
@@ -135,5 +136,85 @@ describe("cardsFromState needs_tag projection — omitted for absent / unrecogni
     const snapshot = JSON.parse(JSON.stringify(records));
     cardsFromState(records);
     expect(records).toEqual(snapshot);
+  });
+});
+
+describe("served Card source references card-needs-tag", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js source contains the literal class name card-needs-tag", async () => {
+    const res = await fetch(`${baseUrl}/app.js`);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body.includes("card-needs-tag")).toBe(true);
+  });
+
+  it("served /app.js source guards the card-needs-tag element on needs_tag being present", async () => {
+    const res = await fetch(`${baseUrl}/app.js`);
+    const body = await res.text();
+    // Same structural-source check pattern as dashboard-card-elapsed and
+    // dashboard-card-session-label: a guard mentioning `needs_tag` precedes
+    // the class-name string. Establishes that the class is not unconditionally
+    // emitted.
+    const guardThenClass = /needs_tag[^]*?card-needs-tag/;
+    expect(guardThenClass.test(body)).toBe(true);
+  });
+
+  it("served /app.js source emits the card-needs-tag class only inside a guard on needs_tag", async () => {
+    // Negative-source mirror of the rail-pulse "no unconditional 'card is-attention'"
+    // check: every occurrence of the bare class string `card-needs-tag` (the
+    // tag's own class — not the descendants `card-needs-tag-icon` /
+    // `card-needs-tag-label`) must be preceded somewhere upstream by a
+    // mention of `needs_tag` so the element is gated. We strip the descendant
+    // class names first so they don't false-positive on the bare-class regex.
+    const res = await fetch(`${baseUrl}/app.js`);
+    const body = await res.text();
+    const stripped = body
+      .replace(/card-needs-tag-icon/g, "")
+      .replace(/card-needs-tag-label/g, "");
+    // Find every occurrence of `card-needs-tag`. For each one, the nearest
+    // mention of `needs_tag` upstream (within the same source) must precede
+    // it — i.e. the element is inside a guard that names needs_tag.
+    let i = 0;
+    let foundAny = false;
+    while (true) {
+      const idx = stripped.indexOf("card-needs-tag", i);
+      if (idx === -1) break;
+      foundAny = true;
+      const prefix = stripped.slice(0, idx);
+      expect(prefix.includes("needs_tag")).toBe(true);
+      i = idx + 1;
+    }
+    expect(foundAny).toBe(true);
+  });
+
+  it("served /app.js source imports tokensForNeed from ./needs-tokens.js", async () => {
+    // Wire-up sanity: the data-shaping projection added in steps 2-3 must
+    // come from the shared needs-tokens.js module, not be re-encoded inline.
+    const res = await fetch(`${baseUrl}/app.js`);
+    const body = await res.text();
+    expect(
+      body.includes('from "./needs-tokens.js"') ||
+        body.includes("from './needs-tokens.js'"),
+    ).toBe(true);
+    expect(body.includes("tokensForNeed")).toBe(true);
+  });
+
+  it("served /app.js source emits a data-need attribute reachable for per-category CSS", async () => {
+    // Step 4's render contract: the element exposes the per-category key on
+    // the DOM (data-need=${...}) so step 5's CSS rules can address it.
+    const res = await fetch(`${baseUrl}/app.js`);
+    const body = await res.text();
+    expect(/data-need\s*=/.test(body)).toBe(true);
   });
 });
