@@ -39,3 +39,22 @@ Fall-through rules (parallel to the three rules in `0002-hook-status-mapping.md`
 1. **Valid override wins, verbatim.** When `CLAUDE_DISPLAY_NEEDS` is set to exactly one of `approve-tool`, `answer-question`, `provide-input`, `pick-option`, `confirm-destructive`, `resolve-conflict`, or `review-diff`, the hook emits that value as-is on the `needs` field, regardless of which event triggered the emission. The check is exact string match against the seven-value enum; case must match (lowercase).
 2. **Unset, empty, or invalid → fall through to auto-derivation.** When `CLAUDE_DISPLAY_NEEDS` is unset, set to the empty string, or set to any string outside the seven-value enum, the hook ignores it and falls through to the per-event auto-derivation table below. **No error is raised**; the variable is treated as if not set. This matches the silent-fall-through behavior locked for `CLAUDE_DISPLAY_STATUS`.
 3. **Status filter still applies.** Even a valid `CLAUDE_DISPLAY_NEEDS` value does not cause the hook to attach a `needs` field on a non-attention-state event; see "Status interaction" below. The override has no power to bypass that filter.
+
+## Per-event auto-derivation table
+
+Default branch of the hybrid scheme. The table below covers every Claude Code hook event the heartbeat hook is wired to per `docs/decisions/0002-hook-status-mapping.md`'s table. Only one row carries an auto-derived `needs` value in v1; every other row says explicitly that no needs value is auto-emitted, which means the only way `needs` ends up on the wire for those events is via a valid `CLAUDE_DISPLAY_NEEDS` override (subject to the status filter below).
+
+| Claude Code hook event | Auto-derived `needs` value | Discriminator |
+|---|---|---|
+| `SessionStart` | *(no needs value is auto-emitted)* | — |
+| `UserPromptSubmit` | *(no needs value is auto-emitted)* | — |
+| `PreToolUse` | *(no needs value is auto-emitted)* | — |
+| `PostToolUse` | *(no needs value is auto-emitted)* | — |
+| `PreCompact` | *(no needs value is auto-emitted)* | — |
+| `Notification` (stdin `message` contains `permission`, case-insensitive) | `approve-tool` | `message` substring `permission` (case-insensitive), matching the `approval`-status discriminator from `0002-hook-status-mapping.md` |
+| `Notification` (any other message) | *(no needs value is auto-emitted)* | — |
+| `Stop` | *(no needs value is auto-emitted)* | — |
+| `SubagentStop` | *(no needs value is auto-emitted)* | — |
+| `SessionEnd` | *(no needs value is auto-emitted)* | — |
+
+Rationale: the `Notification`-with-`permission` row reuses the discriminator already locked for the `approval` status, so the two fields agree without extra logic. Every other event lacks a discriminator that can pick among the seven enum values without false positives, so v1 leaves them override-only. The parent's validation walk for the remaining six categories is satisfied via `CLAUDE_DISPLAY_NEEDS`, which is acceptable per the spec's locked decision.
