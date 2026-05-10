@@ -3,6 +3,7 @@ import {
   TONE_GROUPS,
   STATUS_TONES,
   toneForStatus,
+  filterCardsByTones,
 } from "../status-tones.js";
 
 const EXPECTED_TONES = ["attention", "active", "success", "neutral"];
@@ -79,5 +80,32 @@ describe("toneForStatus", () => {
 
   it("returns 'neutral' for an unknown string", () => {
     expect(toneForStatus("not-a-status")).toBe("neutral");
+  });
+});
+
+describe("filterCardsByTones — boundary cases", () => {
+  const fixture = Object.freeze([
+    { id: "a", status: "approval" },
+    { id: "b", status: "working" },
+    { id: "c", status: "success" },
+    { id: "d", status: "idle" },
+  ]);
+
+  it("returns a new array equal in length and order when all four tones are active", () => {
+    const cards = fixture.map((c) => ({ ...c }));
+    const snapshot = cards.map((c) => ({ ...c }));
+    const result = filterCardsByTones(cards, TONE_GROUPS);
+    expect(result).not.toBe(cards);
+    expect(result.map((c) => c.id)).toEqual(["a", "b", "c", "d"]);
+    expect(cards).toEqual(snapshot);
+  });
+
+  it("returns a new empty array when activeTones is an empty Set", () => {
+    const cards = fixture.map((c) => ({ ...c }));
+    const snapshot = cards.map((c) => ({ ...c }));
+    const result = filterCardsByTones(cards, new Set());
+    expect(result).not.toBe(cards);
+    expect(result).toEqual([]);
+    expect(cards).toEqual(snapshot);
   });
 });
