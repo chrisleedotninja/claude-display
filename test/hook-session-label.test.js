@@ -68,7 +68,7 @@ describe("hook captures tmux session label", () => {
 
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd: "/some/dir" }),
+      stdin: JSON.stringify({ cwd: "/some/dir", hook_event_name: "SessionStart" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
@@ -91,7 +91,7 @@ describe("hook captures tmux session label", () => {
       delete env.TTY;
       const { exitCode, stderr } = await runHook({
         env,
-        stdin: JSON.stringify({ cwd: "/dir/a" }),
+        stdin: JSON.stringify({ cwd: "/dir/a", hook_event_name: "SessionStart" }),
       });
       expect(exitCode, `stderr: ${stderr}`).toBe(0);
       sh.cleanup();
@@ -108,7 +108,7 @@ describe("hook captures tmux session label", () => {
       delete env.TTY;
       const { exitCode, stderr } = await runHook({
         env,
-        stdin: JSON.stringify({ cwd: "/dir/b" }),
+        stdin: JSON.stringify({ cwd: "/dir/b", hook_event_name: "SessionStart" }),
       });
       expect(exitCode, `stderr: ${stderr}`).toBe(0);
       sh.cleanup();
@@ -148,7 +148,7 @@ describe("hook captures cmux workspace label and bare absence", () => {
 
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd: "/cm/dir" }),
+      stdin: JSON.stringify({ cwd: "/cm/dir", hook_event_name: "SessionStart" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
@@ -173,7 +173,7 @@ describe("hook captures cmux workspace label and bare absence", () => {
 
     const { exitCode, stderr } = await runHook({
       env: { ...env, PATH: process.env.PATH },
-      stdin: JSON.stringify({ cwd: "/bare/dir" }),
+      stdin: JSON.stringify({ cwd: "/bare/dir", hook_event_name: "SessionStart" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 

@@ -70,7 +70,7 @@ describe("hook captures repo basename and branch from git cwd", () => {
     };
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd: repoDir }),
+      stdin: JSON.stringify({ cwd: repoDir, hook_event_name: "SessionStart" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
