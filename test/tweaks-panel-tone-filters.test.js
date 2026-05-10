@@ -297,3 +297,69 @@ describe("served /app.js toggle handler updates activeTones via toggleActiveTone
     expect(/\bdraw\s*\(/.test(span)).toBe(true);
   });
 });
+
+describe("server-state isolation: filter wiring stays client-side (Step 7, AC5)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Brace-walking helpers (mirrored from earlier in this file).
+  function extractBalancedBlock(src, openBraceIdx) {
+    let depth = 1;
+    for (let i = openBraceIdx + 1; i < src.length; i++) {
+      const c = src[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) return src.slice(openBraceIdx + 1, i);
+      }
+    }
+    return null;
+  }
+  function findFunctionBodyOpenBrace(src, name) {
+    const sigRe = new RegExp(`\\bfunction\\s+${name}\\s*\\(`);
+    const m = src.match(sigRe);
+    if (!m) return -1;
+    let i = m.index + m[0].length;
+    let depth = 1;
+    while (i < src.length && depth > 0) {
+      const c = src[i];
+      if (c === "(") depth++;
+      else if (c === ")") depth--;
+      i++;
+    }
+    while (i < src.length && /\s/.test(src[i])) i++;
+    if (src[i] !== "{") return -1;
+    return i;
+  }
+
+  it("server.js source contains no reference to activeTones, filterCardsByTones, TONE_GROUPS, or tweaks-tone-filter", async () => {
+    // Read server.js by issuing a GET against itself? No — server.js is
+    // not in STATIC_FILES. Read it from disk via Bun.file.
+    const path = require("node:path");
+    const here = path.resolve(__dirname, "..");
+    const serverSrc = await Bun.file(path.join(here, "server.js")).text();
+    expect(serverSrc.includes("activeTones")).toBe(false);
+    expect(serverSrc.includes("filterCardsByTones")).toBe(false);
+    expect(serverSrc.includes("TONE_GROUPS")).toBe(false);
+    expect(serverSrc.includes("tweaks-tone-filter")).toBe(false);
+  });
+
+  it("cardsFromState's body in app.js references neither activeTones nor filterCardsByTones", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const openIdx = findFunctionBodyOpenBrace(body, "cardsFromState");
+    expect(openIdx).toBeGreaterThan(-1);
+    const inner = extractBalancedBlock(body, openIdx);
+    expect(inner).not.toBeNull();
+    expect(inner.includes("activeTones")).toBe(false);
+    expect(inner.includes("filterCardsByTones")).toBe(false);
+  });
+});
