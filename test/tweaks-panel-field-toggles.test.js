@@ -478,3 +478,36 @@ describe("served /styles.css field-toggle rules source palette vars and add no n
     }
   });
 });
+
+describe("HTML shape and served-app shape continuity (Step 10)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served / contains exactly one <div id=\"root\"></div> mount point", async () => {
+    const body = await (await fetch(`${baseUrl}/`)).text();
+    const matches = body.match(/<div\s+id\s*=\s*"root"\s*>\s*<\/div>/g) || [];
+    expect(matches).toHaveLength(1);
+  });
+
+  it("served / contains exactly one /app.js module-script reference", async () => {
+    const body = await (await fetch(`${baseUrl}/`)).text();
+    const matches =
+      body.match(/<script[^>]+type\s*=\s*"module"[^>]+src\s*=\s*"\/app\.js"[^>]*>/g) ||
+      [];
+    expect(matches).toHaveLength(1);
+  });
+
+  it("served /app.js contains no http(s) URL", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(/https?:\/\//.test(body)).toBe(false);
+  });
+});
