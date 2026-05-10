@@ -37,7 +37,14 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
       const url = new URL(req.url);
 
       if (req.method === "GET" && url.pathname === "/api/state") {
-        const records = Array.from(state.values());
+        // Materialize each record's subagents Map as an array on the wire.
+        // The internal storage uses a Map for replace-on-duplicate semantics;
+        // the JSON shape is a plain array so existing consumers see a stable
+        // top-level record shape with an additive `subagents` array.
+        const records = Array.from(state.values()).map((rec) => ({
+          ...rec,
+          subagents: Array.from(rec.subagents.values()),
+        }));
         return Response.json(records);
       }
 
@@ -90,6 +97,16 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         ) {
           return new Response("missing required fields", { status: 400 });
         }
+        // Optional `parent_id` (subagent linkage, ADR 0002): when present, it
+        // must be a non-empty string. Wrong-type values are 4xx with no state
+        // mutation. Absence is still legal — top-level events have no
+        // parent_id at all.
+        if (
+          Object.hasOwn(payload, "parent_id") &&
+          (typeof payload.parent_id !== "string" || payload.parent_id.length === 0)
+        ) {
+          return new Response("invalid parent_id", { status: 400 });
+        }
         // Optional repo/branch must be strings when present. Absent or empty
         // is fine — the dashboard renders nothing rather than a placeholder.
         if (
@@ -109,6 +126,41 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         ) {
           return new Response("invalid event_at", { status: 400 });
         }
+        // End-event branch (ADR 0002, [020]): when `parent_id` is present and
+        // `status === "idle"`, the event is a SubagentStop signal — remove the
+        // subagent record from the named parent rather than upserting. Orphan
+        // posture for end events is "tolerated, no state mutation": if either
+        // the parent or the subagent is unknown, the call is a no-op.
+        if (
+          typeof payload.parent_id === "string" &&
+          payload.status === "idle"
+        ) {
+          const parent = state.get(payload.parent_id);
+          if (parent) {
+            parent.subagents.delete(payload.id);
+          }
+          return new Response(null, { status: 202 });
+        }
+        // Subagent activity: nest under the named parent when known. Orphan
+        // (parent_id present but unknown) falls through to the top-level
+        // record path per ADR 0002. Subagent records carry a server-derived
+        // `last_event_at` (chores 027–029 contract); the top-level path uses
+        // the payload-supplied `event_at` instead.
+        if (typeof payload.parent_id === "string" && state.has(payload.parent_id)) {
+          const parent = state.get(payload.parent_id);
+          const now = Date.now();
+          parent.subagents.set(payload.id, {
+            id: payload.id,
+            id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
+            status: payload.status,
+            last_event_at: now,
+          });
+          // Bump the parent's own `last_event_at` so the most-recent-first
+          // sort in `cardsFromState` (chore [015]) ranks the parent at the
+          // top, carrying its nested subagents along (chore [030]).
+          parent.last_event_at = now;
+          return new Response(null, { status: 202 });
+        }
         const record = {
           id: payload.id,
           id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
@@ -117,6 +169,7 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
             typeof payload.session_label === "string" && payload.session_label.length > 0
               ? payload.session_label
               : undefined,
+          subagents: state.get(payload.id)?.subagents ?? new Map(),
         };
         if (typeof payload.repo === "string") record.repo = payload.repo;
         if (typeof payload.branch === "string") record.branch = payload.branch;

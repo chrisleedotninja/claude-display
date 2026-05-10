@@ -29,7 +29,9 @@ export function formatElapsed(ms) {
 // AC2: never `unknown` or `-` for missing repo/branch.) `session_label`,
 // `desktop`, and `elapsed` are included only when the record carries a
 // non-empty string — the dashboard never shows a placeholder when the value
-// is absent.
+// is absent. `subagents`, when the record supplies the Map-as-array on the
+// wire, is propagated as a minimal `[{id, status}]` view-model array per
+// ADR 0002.
 //
 // Order: most-recent-first by `last_event_at` (descending), with `id`
 // ascending as the stable tiebreaker. Records whose `last_event_at` is
@@ -61,6 +63,9 @@ export function cardsFromState(records, now = Date.now()) {
           card.elapsed = formatElapsed(delta);
         }
       }
+      if (Array.isArray(r.subagents)) {
+        card.subagents = r.subagents.map((s) => ({ id: s.id, status: s.status }));
+      }
       return card;
     })
     .sort((a, b) => {
@@ -91,10 +96,27 @@ export function applyEventToCards(cards, record) {
   return next;
 }
 
-function Card({ id, status, repo, branch, session_label, desktop, elapsed }) {
+function SubagentCard({ id, status }) {
+  return html`
+    <div class="card subagent-card">
+      <div class="card-id">${id}</div>
+      <div class="card-status">${status}</div>
+    </div>
+  `;
+}
+
+function Card({ id, status, repo, branch, session_label, desktop, elapsed, subagents }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
+  const nested =
+    subagents && subagents.length > 0
+      ? html`
+          <div class="subagents">
+            ${subagents.map((s) => html`<${SubagentCard} id=${s.id} status=${s.status} />`)}
+          </div>
+        `
+      : null;
   return html`
     <div class="card" style=${"view-transition-name: card-" + id}>
       <div class="card-id">${id}</div>
@@ -104,6 +126,7 @@ function Card({ id, status, repo, branch, session_label, desktop, elapsed }) {
       ${hasDesktop ? html`<div class="card-desktop">${desktop}</div>` : null}
       ${hasElapsed ? html`<div class="card-elapsed">${elapsed}</div>` : null}
       <div class="card-status">${status}</div>
+      ${nested}
     </div>
   `;
 }
@@ -125,6 +148,7 @@ function Dashboard({ cards }) {
             session_label=${c.session_label}
             desktop=${c.desktop}
             elapsed=${c.elapsed}
+            subagents=${c.subagents}
           />`,
       )}
     </div>

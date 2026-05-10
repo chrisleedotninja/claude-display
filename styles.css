@@ -85,3 +85,23 @@ body {
   padding: 2rem 0;
   text-align: center;
 }
+
+/* Nested subagent cards. Mission Board treatment: indented and visually
+ * tied to the parent via a left-rail connector, with a slightly reduced
+ * silhouette so nesting is unambiguous (see parent 001 spec lines 17 + 57). */
+.subagents {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  margin-left: 1.25rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border);
+}
+
+.subagent-card {
+  margin-left: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  font-size: 13px;
+  border-left: 3px solid var(--accent);
+}
