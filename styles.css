@@ -179,6 +179,21 @@ body {
   }
 }
 
+/* Token-layer animation keyframes (chore [048]). Five standard keyframes
+ * from the design token set, available for future use by feature slices. */
+@keyframes pulseRing {
+  0%   { box-shadow: 0 0 0 0 currentColor; opacity: 0.7; }
+  70%  { box-shadow: 0 0 0 10px transparent; opacity: 0; }
+  100% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.18); opacity: 0.85; }
+}
+@keyframes spin   { to { transform: rotate(360deg); } }
+@keyframes blink  { 50% { opacity: 0.3; } }
+@keyframes shimmer { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
 @media (prefers-reduced-motion: reduce) {
   .card.is-attention {
     animation: none;
