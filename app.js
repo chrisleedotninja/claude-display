@@ -90,6 +90,17 @@ export function cardsFromState(records, now = Date.now()) {
     });
 }
 
+// Pure helper: compute the next Tweaks-panel open state from the previous
+// one. The panel's documented start state is closed (`false`); any
+// non-boolean previous value (undefined / null / number / string / object)
+// is treated as `false` so that a first-tap from an uninitialised state
+// opens the panel. Pure so toggle correctness is verifiable without a DOM.
+// See chore [033].
+export function nextPanelOpen(prev) {
+  const prevBool = prev === true;
+  return !prevBool;
+}
+
 // Pure upsert: given the previous cards array and one incoming record,
 // return a new cards array. If the record's id already appears in cards,
 // the matching entry is replaced in place (same index, same length); if
