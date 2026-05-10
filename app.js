@@ -5,6 +5,14 @@
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
 import { tokensForStatus, isAttentionStatus } from "./status-tokens.js";
+import { TONE_GROUPS, filterCardsByTones } from "./status-tones.js";
+import {
+  hydrateActiveTones,
+  hydrateVisibleFields,
+  writeActiveTones,
+  writeVisibleFields,
+  createCoalescingWriter,
+} from "./tweaks-persistence.js";
 
 const html = htm.bind(h);
 
@@ -90,6 +98,82 @@ export function cardsFromState(records, now = Date.now()) {
     });
 }
 
+// Pure helper: compute the next Tweaks-panel open state from the previous
+// one. The panel's documented start state is closed (`false`); any
+// non-boolean previous value (undefined / null / number / string / object)
+// is treated as `false` so that a first-tap from an uninitialised state
+// opens the panel. Pure so toggle correctness is verifiable without a DOM.
+// See chore [033].
+export function nextPanelOpen(prev) {
+  const prevBool = prev === true;
+  return !prevBool;
+}
+
+// Pure helper: return a fresh Set with `tone` toggled — added if absent,
+// removed if present. Never mutates the input Set; always allocates a new
+// Set instance (mirrors the `applyEventToCards` "return a new array"
+// discipline). Unrecognized tone strings are toggled in/out as opaque
+// strings without throwing — the caller is responsible for the canonical
+// tone vocabulary (see TONE_GROUPS in status-tones.js, chore [032]).
+export function toggleActiveTone(prev, tone) {
+  const next = new Set(prev);
+  if (next.has(tone)) {
+    next.delete(tone);
+  } else {
+    next.add(tone);
+  }
+  return next;
+}
+
+// Pure helper: return a fresh Set with `field` toggled — added if absent,
+// removed if present. Never mutates the input Set; always allocates a new
+// Set instance. Mirrors `toggleActiveTone`'s shape. Unrecognized field
+// strings are toggled in/out as opaque strings without throwing — the
+// caller is responsible for the canonical five-field vocabulary
+// `{"repo", "branch", "session", "desktop", "elapsed"}`. See chore [037].
+export function toggleVisibleField(prev, field) {
+  const next = new Set(prev);
+  if (next.has(field)) {
+    next.delete(field);
+  } else {
+    next.add(field);
+  }
+  return next;
+}
+
+// Pure helper: return a new array of card view-model objects with the
+// hidden metadata fields removed. The vocabulary mapping is fixed:
+// the `"session"` toggle key strips the `session_label` property; the
+// other four (`"repo"`, `"branch"`, `"desktop"`, `"elapsed"`) strip the
+// same-named property. Stripping a property the card never carried is a
+// no-op (does not introduce the property and does not throw). The input
+// array and its card objects are never mutated; every returned card is a
+// fresh shallow-clone object so a downstream renderer cannot accidentally
+// observe a hidden field via reference identity. Pure so AC2 / AC3 / AC4
+// correctness is verifiable without a DOM. See chore [037].
+const FIELD_TO_CARD_KEY = Object.freeze({
+  repo: "repo",
+  branch: "branch",
+  session: "session_label",
+  desktop: "desktop",
+  elapsed: "elapsed",
+});
+export function stripHiddenFields(cards, visibleFields) {
+  const hiddenKeys = [];
+  for (const field of Object.keys(FIELD_TO_CARD_KEY)) {
+    if (!visibleFields.has(field)) {
+      hiddenKeys.push(FIELD_TO_CARD_KEY[field]);
+    }
+  }
+  return cards.map((card) => {
+    const next = { ...card };
+    for (const key of hiddenKeys) {
+      delete next[key];
+    }
+    return next;
+  });
+}
+
 // Pure upsert: given the previous cards array and one incoming record,
 // return a new cards array. If the record's id already appears in cards,
 // the matching entry is replaced in place (same index, same length); if
@@ -146,29 +230,104 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   `;
 }
 
-function Dashboard({ cards }) {
-  if (cards.length === 0) {
-    return html`<div class="empty-state">No sessions yet.</div>`;
-  }
+function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone, visibleFields, onToggleField }) {
+  const cardsTree =
+    cards.length === 0
+      ? html`<div class="empty-state">No sessions yet.</div>`
+      : html`
+          <div class="cards">
+            ${cards.map(
+              (c) =>
+                html`<${Card}
+                  key=${c.id}
+                  id=${c.id}
+                  status=${c.status}
+                  color=${c.color}
+                  icon=${c.icon}
+                  label=${c.label}
+                  repo=${c.repo}
+                  branch=${c.branch}
+                  session_label=${c.session_label}
+                  desktop=${c.desktop}
+                  elapsed=${c.elapsed}
+                  subagents=${c.subagents}
+                />`,
+            )}
+          </div>
+        `;
+  // Tweaks panel surface (chores [033], [036]). The panel-open state and
+  // the active-tones Set both live in `mount()`'s closure-level UI state.
+  // Each tone-group filter control renders with the stable
+  // `tweaks-tone-filter` class plus an `is-on` modifier when its tone is
+  // currently active; clicking the control toggles its tone via
+  // `onToggleTone`.
+  // Build per-tone filter buttons via `h(...)` directly inside the surface
+  // template literal so the literal stays a single backtick block — no
+  // nested `html\`...\`` interpolations — and so the four tone-name
+  // literals plus the `onClick` wiring appear inline within the
+  // panel-body span (Step 4 served-source assertions). Each control:
+  // stable `tweaks-tone-filter` class, `is-on` modifier when active,
+  // the tone string as the visible label, and an `onClick` wired to
+  // `onToggleTone`.
+  // Per-field visibility toggles (chore [037]). Each control sits alongside
+  // the tone filters in the panel body with a stable `tweaks-field-toggle`
+  // class plus an `is-on` modifier when its field is in `visibleFields`.
+  // Built via `h(...)` directly inside the surface template literal so the
+  // literal stays a single backtick block — no nested `html\`...\``
+  // interpolations — and so the five field-name literals plus the
+  // `onClick` wiring appear inline within the panel-body span (Step 4
+  // served-source assertions). Field-stripping for the rendered cards
+  // happens in `draw()` via `stripHiddenFields`, not in `Card`.
+  const panelSurface = panelOpen
+    ? html`
+        <div class="tweaks-panel-surface">
+          <h2 class="tweaks-panel-header">Tweaks</h2>
+          <div class="tweaks-panel-body">
+            ${["attention", "active", "success", "neutral"].map((tone) =>
+              h(
+                "button",
+                {
+                  key: tone,
+                  type: "button",
+                  class: activeTones.has(tone)
+                    ? "tweaks-tone-filter is-on"
+                    : "tweaks-tone-filter",
+                  "aria-pressed": activeTones.has(tone) ? "true" : "false",
+                  onClick: () => onToggleTone(tone),
+                },
+                tone,
+              ),
+            )}
+            ${["repo", "branch", "session", "desktop", "elapsed"].map((field) =>
+              h(
+                "button",
+                {
+                  key: "field-" + field,
+                  type: "button",
+                  class: visibleFields.has(field)
+                    ? "tweaks-field-toggle is-on"
+                    : "tweaks-field-toggle",
+                  "aria-pressed": visibleFields.has(field) ? "true" : "false",
+                  onClick: () => onToggleField(field),
+                },
+                field,
+              ),
+            )}
+          </div>
+        </div>
+      `
+    : null;
   return html`
-    <div class="cards">
-      ${cards.map(
-        (c) =>
-          html`<${Card}
-            key=${c.id}
-            id=${c.id}
-            status=${c.status}
-            color=${c.color}
-            icon=${c.icon}
-            label=${c.label}
-            repo=${c.repo}
-            branch=${c.branch}
-            session_label=${c.session_label}
-            desktop=${c.desktop}
-            elapsed=${c.elapsed}
-            subagents=${c.subagents}
-          />`,
-      )}
+    <div>
+      <button
+        type="button"
+        class="tweaks-panel-toggle"
+        onClick=${onTogglePanel}
+      >
+        Tweaks
+      </button>
+      ${panelSurface}
+      ${cardsTree}
     </div>
   `;
 }
@@ -288,15 +447,94 @@ export function withReorderTransition(viewTransitions, renderFn) {
 
 export async function mount(rootEl) {
   let records = [];
+  // Tweaks panel local UI state (chore [033]). Closure-level boolean,
+  // toggled via `nextPanelOpen` and a `draw()` re-render — mirrors the
+  // existing `records` pattern because the vendored Preact ships without
+  // hooks. Defaults closed (`false`).
+  let panelOpen = false;
+  // Persistence injection point (chore [039]). The Tweaks-panel selections
+  // are hydrated from and written back to a caller-supplied storage stub.
+  // In a real browser the stub is `globalThis.localStorage` and the
+  // scheduler is `queueMicrotask`. In a non-DOM environment (unit tests of
+  // pure helpers) `typeof localStorage === "undefined"` — fall back to a
+  // no-op storage and a synchronous scheduler so `mount()` keeps running.
+  // Mirrors the existing `typeof EventSource !== "undefined"` guard
+  // pattern used for the live-channel boot path.
+  const storage =
+    typeof localStorage !== "undefined"
+      ? globalThis.localStorage
+      : { getItem: () => null, setItem: () => {} };
+  const scheduleWrite =
+    typeof localStorage !== "undefined"
+      ? (fn) => queueMicrotask(fn)
+      : (fn) => fn();
+  // Tweaks-panel tonal filters (chore [036]). Default on first load is
+  // "all four tones active" (AC3); the Set lives in closure-level state for
+  // the same hook-less reason as `panelOpen` and `records`. Toggled via
+  // `toggleActiveTone` which always allocates a fresh Set. Hydrated from
+  // the persistence layer (chore [039]) so a previously-applied selection
+  // is reapplied on reload — `hydrateActiveTones` falls back to a fresh
+  // `new Set(TONE_GROUPS)` when the stored value is missing or malformed.
+  let activeTones = hydrateActiveTones(storage, TONE_GROUPS);
+  // Tweaks-panel field-visibility toggles (chore [037]). Default on first
+  // load is "all five toggles on" (AC5) — every metadata field renders for
+  // every card whose record carries it. The Set lives in closure-level
+  // state for the same hook-less reason as `panelOpen`, `records`, and
+  // `activeTones`. Toggled via `toggleVisibleField` which always allocates
+  // a fresh Set; field-stripping happens in `draw()` via `stripHiddenFields`
+  // so the existing absent-value-omits-the-element branches in `Card`
+  // (chore [003]) stay untouched and AC4 holds automatically. Hydrated
+  // from the persistence layer (chore [039]).
+  let visibleFields = hydrateVisibleFields(storage, new Set(["repo", "branch", "session", "desktop", "elapsed"]));
+  // Coalescing writers (chore [039]). A burst of synchronous toggles
+  // produces exactly one write per writer of the final snapshot — the
+  // injected `scheduleWrite` defers the flush so the writer collapses
+  // intermediate states. Each toggle handler calls `.schedule(snapshot)`
+  // alongside the existing `draw()` re-render.
+  const tonesWriter = createCoalescingWriter(scheduleWrite, (snapshot) =>
+    writeActiveTones(storage, snapshot, TONE_GROUPS),
+  );
+  const fieldsWriter = createCoalescingWriter(scheduleWrite, (snapshot) =>
+    writeVisibleFields(storage, snapshot, ["repo", "branch", "session", "desktop", "elapsed"]),
+  );
   // Wrap the render call through the View Transitions API when available so
   // a reorder-by-recency animates in place rather than full-page repainting
   // (chore [015]). In non-DOM environments (unit tests) `withReorderTransition`
   // falls back to a synchronous call.
+  const togglePanel = () => {
+    panelOpen = nextPanelOpen(panelOpen);
+    draw();
+  };
+  const toggleTone = (tone) => {
+    activeTones = toggleActiveTone(activeTones, tone);
+    tonesWriter.schedule(activeTones);
+    draw();
+  };
+  const toggleField = (field) => {
+    visibleFields = toggleVisibleField(visibleFields, field);
+    fieldsWriter.schedule(visibleFields);
+    draw();
+  };
   const draw = () => {
-    const cards = cardsFromState(records, Date.now());
+    const cards = stripHiddenFields(
+      filterCardsByTones(cardsFromState(records, Date.now()), activeTones),
+      visibleFields,
+    );
     return withReorderTransition(
       typeof document !== "undefined" ? document : null,
-      () => render(html`<${Dashboard} cards=${cards} />`, rootEl),
+      () =>
+        render(
+          html`<${Dashboard}
+            cards=${cards}
+            panelOpen=${panelOpen}
+            onTogglePanel=${togglePanel}
+            activeTones=${activeTones}
+            onToggleTone=${toggleTone}
+            visibleFields=${visibleFields}
+            onToggleField=${toggleField}
+          />`,
+          rootEl,
+        ),
     );
   };
   const res = await fetch("/api/state");

@@ -1,0 +1,513 @@
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { toggleVisibleField, stripHiddenFields } from "../app.js";
+import { createServer } from "../server.js";
+
+describe("toggleVisibleField pure helper (Step 1)", () => {
+  it("returns a Set with the toggled field removed when previously present", () => {
+    const prev = new Set(["repo", "branch", "session", "desktop", "elapsed"]);
+    const next = toggleVisibleField(prev, "branch");
+    expect(next.has("branch")).toBe(false);
+    expect(next.has("repo")).toBe(true);
+    expect(next.has("session")).toBe(true);
+    expect(next.has("desktop")).toBe(true);
+    expect(next.has("elapsed")).toBe(true);
+  });
+
+  it("returns a Set with the toggled field added when previously absent", () => {
+    const prev = new Set(["repo", "session"]);
+    const next = toggleVisibleField(prev, "branch");
+    expect(next.has("branch")).toBe(true);
+    expect(next.has("repo")).toBe(true);
+    expect(next.has("session")).toBe(true);
+  });
+
+  it("returns a different Set instance from the input", () => {
+    const prev = new Set(["repo"]);
+    const next = toggleVisibleField(prev, "branch");
+    expect(next).not.toBe(prev);
+    expect(next instanceof Set).toBe(true);
+  });
+
+  it("does not mutate the input Set", () => {
+    const prev = new Set(["repo", "branch"]);
+    const snapshot = new Set(prev);
+    toggleVisibleField(prev, "branch");
+    expect(prev.size).toBe(snapshot.size);
+    for (const field of snapshot) {
+      expect(prev.has(field)).toBe(true);
+    }
+    // The branch field should still be in prev — it was not mutated.
+    expect(prev.has("branch")).toBe(true);
+  });
+
+  it("passes through unrecognized field strings (toggles them as opaque strings) without throwing", () => {
+    const prev = new Set(["repo"]);
+    expect(() => toggleVisibleField(prev, "made-up-field")).not.toThrow();
+    const added = toggleVisibleField(prev, "made-up-field");
+    expect(added.has("made-up-field")).toBe(true);
+    const removed = toggleVisibleField(added, "made-up-field");
+    expect(removed.has("made-up-field")).toBe(false);
+  });
+});
+
+describe("stripHiddenFields pure helper (Step 2)", () => {
+  function makeFullCard(id) {
+    return {
+      id,
+      status: "working",
+      color: "#abc",
+      icon: "•",
+      label: "Working",
+      repo: "claude-display",
+      branch: "main",
+      session_label: "tmux:0",
+      desktop: "alpha",
+      elapsed: "5s",
+      last_event_at: 1700000000000,
+    };
+  }
+  const ALL = new Set(["repo", "branch", "session", "desktop", "elapsed"]);
+
+  it("when visibleFields contains all five names, returns cards whose five metadata properties are unchanged", () => {
+    const cards = [makeFullCard("a"), makeFullCard("b")];
+    const out = stripHiddenFields(cards, ALL);
+    expect(out).toHaveLength(2);
+    for (let i = 0; i < out.length; i++) {
+      expect(out[i].repo).toBe(cards[i].repo);
+      expect(out[i].branch).toBe(cards[i].branch);
+      expect(out[i].session_label).toBe(cards[i].session_label);
+      expect(out[i].desktop).toBe(cards[i].desktop);
+      expect(out[i].elapsed).toBe(cards[i].elapsed);
+    }
+  });
+
+  it("when visibleFields omits 'repo', returns cards with no own repo property", () => {
+    const cards = [makeFullCard("a")];
+    const visible = new Set(["branch", "session", "desktop", "elapsed"]);
+    const out = stripHiddenFields(cards, visible);
+    expect(Object.hasOwn(out[0], "repo")).toBe(false);
+    // The other fields survive.
+    expect(out[0].branch).toBe("main");
+    expect(out[0].session_label).toBe("tmux:0");
+    expect(out[0].desktop).toBe("alpha");
+    expect(out[0].elapsed).toBe("5s");
+  });
+
+  it("when visibleFields omits 'session', returns cards with no own session_label property (verifies the session → session_label mapping)", () => {
+    const cards = [makeFullCard("a")];
+    const visible = new Set(["repo", "branch", "desktop", "elapsed"]);
+    const out = stripHiddenFields(cards, visible);
+    expect(Object.hasOwn(out[0], "session_label")).toBe(false);
+    // Ensure we did not strip a literally-named "session" property either.
+    expect(Object.hasOwn(out[0], "session")).toBe(false);
+    expect(out[0].repo).toBe("claude-display");
+  });
+
+  it("for a card whose input has no desktop, removing desktop from visibleFields produces a card whose output also has no desktop (AC4)", () => {
+    const card = makeFullCard("a");
+    delete card.desktop;
+    const visible = new Set(["repo", "branch", "session", "elapsed"]);
+    const out = stripHiddenFields([card], visible);
+    expect(Object.hasOwn(out[0], "desktop")).toBe(false);
+    // Other fields the input carried still appear.
+    expect(out[0].repo).toBe("claude-display");
+    expect(out[0].elapsed).toBe("5s");
+  });
+
+  it("toggling one field off does not strip any other field (AC3 independence)", () => {
+    const cards = [makeFullCard("a")];
+    const visible = new Set(["repo", "session", "desktop", "elapsed"]);
+    const out = stripHiddenFields(cards, visible);
+    // Only branch is hidden.
+    expect(Object.hasOwn(out[0], "branch")).toBe(false);
+    expect(out[0].repo).toBe("claude-display");
+    expect(out[0].session_label).toBe("tmux:0");
+    expect(out[0].desktop).toBe("alpha");
+    expect(out[0].elapsed).toBe("5s");
+  });
+
+  it("does not mutate the input cards array or its card objects", () => {
+    const cards = [makeFullCard("a"), makeFullCard("b")];
+    const inputRef0 = cards[0];
+    const inputRef1 = cards[1];
+    const snapshotKeys0 = Object.keys(inputRef0).sort();
+    const snapshotKeys1 = Object.keys(inputRef1).sort();
+    const visible = new Set(["session", "elapsed"]);
+    stripHiddenFields(cards, visible);
+    expect(cards.length).toBe(2);
+    expect(cards[0]).toBe(inputRef0);
+    expect(cards[1]).toBe(inputRef1);
+    expect(Object.keys(inputRef0).sort()).toEqual(snapshotKeys0);
+    expect(Object.keys(inputRef1).sort()).toEqual(snapshotKeys1);
+  });
+
+  it("returns a fresh array reference and each returned card is a fresh object reference", () => {
+    const cards = [makeFullCard("a"), makeFullCard("b")];
+    const out = stripHiddenFields(cards, ALL);
+    expect(out).not.toBe(cards);
+    for (let i = 0; i < out.length; i++) {
+      expect(out[i]).not.toBe(cards[i]);
+    }
+  });
+});
+
+describe("served /app.js initialises visibleFields to the full five-field set (Step 3)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js declares `let visibleFields` and initialises it with all five field names", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Locate the substring spanning a `let visibleFields` declaration
+    // through the next `;` and verify it contains each of the five
+    // quoted field-name strings.
+    const declRe = /let\s+visibleFields\b[^;]*;/;
+    const m = body.match(declRe);
+    expect(m).not.toBeNull();
+    const decl = m[0];
+    // Must be a `new Set([...])` construction whose array literal includes
+    // each of the five field names.
+    expect(/new\s+Set\s*\(\s*\[/.test(decl)).toBe(true);
+    for (const field of ["repo", "branch", "session", "desktop", "elapsed"]) {
+      // Tolerant of single or double quotes.
+      const fieldRe = new RegExp(`["']${field}["']`);
+      expect(fieldRe.test(decl)).toBe(true);
+    }
+  });
+});
+
+describe("served /app.js renders one field-toggle control per metadata field inside the panel body (Step 4)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js mentions the tweaks-field-toggle class string", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("tweaks-field-toggle")).toBe(true);
+  });
+
+  it("served /app.js mentions the is-on on-state modifier string", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("is-on")).toBe(true);
+  });
+
+  it("renders all five field-name labels inside the panel-body span", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Walk forward from the panel-surface class to the surface template's
+    // closing backtick — same surfaceIdx → closeIdx walk used in
+    // test/tweaks-panel-tone-filters.test.js Step 4.
+    const surfaceIdx = body.indexOf("tweaks-panel-surface");
+    expect(surfaceIdx).toBeGreaterThan(-1);
+    const bodyIdx = body.indexOf("tweaks-panel-body", surfaceIdx);
+    expect(bodyIdx).toBeGreaterThan(surfaceIdx);
+    const closeIdx = body.indexOf("`", surfaceIdx);
+    expect(closeIdx).toBeGreaterThan(bodyIdx);
+    const span = body.slice(bodyIdx, closeIdx);
+    for (const field of ["repo", "branch", "session", "desktop", "elapsed"]) {
+      expect(span.includes(field)).toBe(true);
+    }
+  });
+
+  it("wires the new controls with onClick (or onclick) inside the surface span", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const surfaceIdx = body.indexOf("tweaks-panel-surface");
+    const closeIdx = body.indexOf("`", surfaceIdx);
+    const span = body.slice(surfaceIdx, closeIdx);
+    const hasClickHandler = /\bonClick\b/.test(span) || /\bonclick\b/.test(span);
+    expect(hasClickHandler).toBe(true);
+  });
+
+  it("the existing tweaks-tone-filter substring still appears within the same panel-body span (added alongside, not in place of)", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const surfaceIdx = body.indexOf("tweaks-panel-surface");
+    const closeIdx = body.indexOf("`", surfaceIdx);
+    const span = body.slice(surfaceIdx, closeIdx);
+    expect(span.includes("tweaks-tone-filter")).toBe(true);
+    expect(span.includes("tweaks-field-toggle")).toBe(true);
+  });
+});
+
+describe("served /app.js wraps filterCardsByTones with stripHiddenFields inside draw() (Step 5)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Walk a balanced parenthesis span starting at the open `(` immediately
+  // after a named call. Returns the substring including the matching `)`.
+  function balancedParenSpan(src, callIdx, callName) {
+    const openParen = callIdx + callName.length;
+    if (src[openParen] !== "(") return null;
+    let depth = 1;
+    for (let i = openParen + 1; i < src.length; i++) {
+      const c = src[i];
+      if (c === "(") depth++;
+      else if (c === ")") {
+        depth--;
+        if (depth === 0) return src.slice(openParen, i + 1);
+      }
+    }
+    return null;
+  }
+
+  it("served /app.js contains a stripHiddenFields( call site whose args reference filterCardsByTones and visibleFields", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // First occurrence is `export function stripHiddenFields`. Find a use
+    // site beyond that — search after the first occurrence.
+    const firstIdx = body.indexOf("stripHiddenFields(");
+    expect(firstIdx).toBeGreaterThan(-1);
+    const useIdx = body.indexOf("stripHiddenFields(", firstIdx + 1);
+    expect(useIdx).toBeGreaterThan(-1);
+    const span = balancedParenSpan(body, useIdx, "stripHiddenFields");
+    expect(span).not.toBeNull();
+    expect(span.includes("filterCardsByTones")).toBe(true);
+    expect(span.includes("visibleFields")).toBe(true);
+  });
+
+  it("the existing filterCardsByTones(cardsFromState(records call site is preserved (regression guard for chore [036])", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(/filterCardsByTones\s*\(\s*cardsFromState\s*\(\s*records\b/.test(body)).toBe(true);
+  });
+});
+
+describe("served /app.js toggle handler updates visibleFields via toggleVisibleField and calls draw() (Step 6)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("references the toggleVisibleField helper by name in the served body", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("toggleVisibleField")).toBe(true);
+  });
+
+  it("the toggle handler reassigns visibleFields via the helper and calls draw()", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // First occurrence is `export function toggleVisibleField`; the second
+    // is the use site. Sanity-check we found a use site beyond the
+    // definition.
+    const useIdx = body.indexOf("toggleVisibleField(", body.indexOf("toggleVisibleField") + 1);
+    expect(useIdx).toBeGreaterThan(-1);
+    // Take a window of ~400 chars around the use site and assert the
+    // structural conditions hold within the handler scope.
+    const windowStart = Math.max(0, useIdx - 200);
+    const windowEnd = Math.min(body.length, useIdx + 400);
+    const span = body.slice(windowStart, windowEnd);
+    // Both an assignment of visibleFields and a draw() call must appear in
+    // the same handler window.
+    expect(/visibleFields\s*=\s*toggleVisibleField\s*\(\s*visibleFields\b/.test(span)).toBe(true);
+    expect(/\bdraw\s*\(/.test(span)).toBe(true);
+  });
+});
+
+describe("Card body is unaffected by field-toggle wiring (Step 7, AC4)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  function extractBalancedBlock(src, openBraceIdx) {
+    let depth = 1;
+    for (let i = openBraceIdx + 1; i < src.length; i++) {
+      const c = src[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) return src.slice(openBraceIdx + 1, i);
+      }
+    }
+    return null;
+  }
+
+  function findFunctionBodyOpenBrace(src, name) {
+    const sigRe = new RegExp(`\\bfunction\\s+${name}\\s*\\(`);
+    const m = src.match(sigRe);
+    if (!m) return -1;
+    let i = m.index + m[0].length;
+    let depth = 1;
+    while (i < src.length && depth > 0) {
+      const c = src[i];
+      if (c === "(") depth++;
+      else if (c === ")") depth--;
+      i++;
+    }
+    while (i < src.length && /\s/.test(src[i])) i++;
+    if (src[i] !== "{") return -1;
+    return i;
+  }
+
+  it("Card's body in app.js does not reference visibleFields, stripHiddenFields, tweaks-field-toggle, or toggleVisibleField", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const openIdx = findFunctionBodyOpenBrace(body, "Card");
+    expect(openIdx).toBeGreaterThan(-1);
+    const inner = extractBalancedBlock(body, openIdx);
+    expect(inner).not.toBeNull();
+    expect(inner.includes("visibleFields")).toBe(false);
+    expect(inner.includes("stripHiddenFields")).toBe(false);
+    expect(inner.includes("tweaks-field-toggle")).toBe(false);
+    expect(inner.includes("toggleVisibleField")).toBe(false);
+  });
+
+  it("Card's body still contains the five conditional card-* div-class strings (regression guard for chore [003])", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const openIdx = findFunctionBodyOpenBrace(body, "Card");
+    const inner = extractBalancedBlock(body, openIdx);
+    for (const cls of [
+      "card-repo",
+      "card-branch",
+      "card-session-label",
+      "card-desktop",
+      "card-elapsed",
+    ]) {
+      expect(inner.includes(cls)).toBe(true);
+    }
+  });
+});
+
+describe("server-state isolation: field-toggle wiring stays client-side (Step 8, AC5)", () => {
+  it("server.js source contains no reference to visibleFields, stripHiddenFields, toggleVisibleField, or tweaks-field-toggle", async () => {
+    const path = require("node:path");
+    const here = path.resolve(__dirname, "..");
+    const serverSrc = await Bun.file(path.join(here, "server.js")).text();
+    expect(serverSrc.includes("visibleFields")).toBe(false);
+    expect(serverSrc.includes("stripHiddenFields")).toBe(false);
+    expect(serverSrc.includes("toggleVisibleField")).toBe(false);
+    expect(serverSrc.includes("tweaks-field-toggle")).toBe(false);
+  });
+});
+
+describe("served /styles.css field-toggle rules source palette vars and add no new hex (Step 9)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Collect every `<selector list> { ... }` block whose selector list
+  // mentions the given class name. Returns the inner declaration-block
+  // strings.
+  function blocksFor(css, className) {
+    const blocks = [];
+    const re = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = re.exec(css)) !== null) {
+      const sel = m[1].trim();
+      if (sel.startsWith("@")) continue;
+      if (sel.includes(`.${className}`)) blocks.push(m[2]);
+    }
+    return blocks;
+  }
+
+  it("the .tweaks-field-toggle selector appears with at least one rule block", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const blocks = blocksFor(css, "tweaks-field-toggle");
+    expect(blocks.length).toBeGreaterThan(0);
+  });
+
+  it("the .tweaks-field-toggle.is-on on-state appears in at least one selector list", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const flatRe = /\.tweaks-field-toggle\s*\.is-on\b/;
+    const flatExists = flatRe.test(css);
+    let nestedExists = false;
+    for (const block of blocksFor(css, "tweaks-field-toggle")) {
+      if (/&\.is-on\b/.test(block)) {
+        nestedExists = true;
+        break;
+      }
+    }
+    expect(flatExists || nestedExists).toBe(true);
+  });
+
+  it("every declaration block for .tweaks-field-toggle selectors uses at least one var(--…) reference", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const blocks = blocksFor(css, "tweaks-field-toggle");
+    expect(blocks.length).toBeGreaterThan(0);
+    for (const block of blocks) {
+      expect(/var\(\s*--[\w-]+\s*\)/.test(block)).toBe(true);
+    }
+  });
+
+  it("no #xxxxxx hex literal appears inside the .tweaks-field-toggle declaration blocks", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const blocks = blocksFor(css, "tweaks-field-toggle");
+    for (const block of blocks) {
+      expect(/#[0-9a-fA-F]{3,8}\b/.test(block)).toBe(false);
+    }
+  });
+});
+
+describe("HTML shape and served-app shape continuity (Step 10)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served / contains exactly one <div id=\"root\"></div> mount point", async () => {
+    const body = await (await fetch(`${baseUrl}/`)).text();
+    const matches = body.match(/<div\s+id\s*=\s*"root"\s*>\s*<\/div>/g) || [];
+    expect(matches).toHaveLength(1);
+  });
+
+  it("served / contains exactly one /app.js module-script reference", async () => {
+    const body = await (await fetch(`${baseUrl}/`)).text();
+    const matches =
+      body.match(/<script[^>]+type\s*=\s*"module"[^>]+src\s*=\s*"\/app\.js"[^>]*>/g) ||
+      [];
+    expect(matches).toHaveLength(1);
+  });
+
+  it("served /app.js contains no http(s) URL", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(/https?:\/\//.test(body)).toBe(false);
+  });
+});
