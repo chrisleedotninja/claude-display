@@ -253,3 +253,47 @@ describe("served /app.js filtered card list drives both the rendered list and th
     expect(inner.includes("cardsFromState(")).toBe(false);
   });
 });
+
+describe("served /app.js toggle handler updates activeTones via toggleActiveTone and calls draw() (Step 6)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("references the toggleActiveTone helper by name in the served body", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("toggleActiveTone")).toBe(true);
+  });
+
+  it("the toggle handler reassigns activeTones via the helper and calls draw()", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Locate a span starting at the first `toggleActiveTone(` call site
+    // (the helper's USE site, not its definition). Walk forward to the
+    // next `}` that closes the enclosing arrow-function or block. The
+    // span must mention `activeTones` on both sides of an `=` and
+    // contain a `draw(` call.
+    const useIdx = body.indexOf("toggleActiveTone(", body.indexOf("toggleActiveTone") + 1);
+    // First occurrence is `export function toggleActiveTone`; the second
+    // is the use site. Sanity-check we found a use site beyond the
+    // definition.
+    expect(useIdx).toBeGreaterThan(-1);
+    // Walk back to find the start of the enclosing handler — look for
+    // the most recent `=>` or `{`.
+    // Simpler: take a window of ~400 chars around the use site and
+    // assert the structural conditions hold.
+    const windowStart = Math.max(0, useIdx - 200);
+    const windowEnd = Math.min(body.length, useIdx + 400);
+    const span = body.slice(windowStart, windowEnd);
+    // Both an assignment of activeTones and a draw() call must appear in
+    // the same handler window.
+    expect(/activeTones\s*=\s*toggleActiveTone\s*\(\s*activeTones\b/.test(span)).toBe(true);
+    expect(/\bdraw\s*\(/.test(span)).toBe(true);
+  });
+});
