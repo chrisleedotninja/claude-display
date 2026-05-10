@@ -26,7 +26,7 @@ describe("hook is resilient when the server is unreachable", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
-    proc.stdin.write(JSON.stringify({ cwd: "/q" }));
+    proc.stdin.write(JSON.stringify({ cwd: "/q", hook_event_name: "SessionStart" }));
     await proc.stdin.end();
     const exitCode = await proc.exited;
     const elapsed = Date.now() - start;

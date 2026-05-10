@@ -6,25 +6,59 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const readmePath = join(here, "..", "README.md");
 
+// Every Claude Code hook event the locked mapping in
+// docs/decisions/0002-hook-status-mapping.md asks the hook to be wired up to.
+// SessionEnd is intentionally excluded — the decision says no POST.
+const REQUIRED_EVENTS = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "PostToolUse",
+  "PreCompact",
+  "Notification",
+  "Stop",
+  "SubagentStop",
+];
+
 describe("README documents the hook configuration", () => {
   const readme = readFileSync(readmePath, "utf8");
+  const jsonBlocks = [...readme.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]);
 
-  it("contains a fenced ```json block referencing SessionStart", () => {
-    // Find a fenced ```json ... ``` block.
-    const jsonBlocks = [...readme.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]);
+  it("contains a fenced ```json block referencing every event in the locked mapping", () => {
     expect(jsonBlocks.length).toBeGreaterThan(0);
-    const sessionStartBlock = jsonBlocks.find((b) => b.includes("SessionStart"));
-    expect(sessionStartBlock, "expected a ```json block containing 'SessionStart'").toBeDefined();
+    // Find the first json block that contains 'hooks' — that's the settings.json snippet.
+    const hooksBlock = jsonBlocks.find((b) => b.includes('"hooks"'));
+    expect(hooksBlock, "expected a ```json block containing a 'hooks' object").toBeDefined();
+    for (const eventName of REQUIRED_EVENTS) {
+      expect(hooksBlock, `expected the hooks json block to wire ${eventName}`).toContain(
+        `"${eventName}"`,
+      );
+    }
   });
 
-  it("the json block references the hook script's repo-relative path", () => {
-    const jsonBlocks = [...readme.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]);
-    const sessionStartBlock = jsonBlocks.find((b) => b.includes("SessionStart"));
-    expect(sessionStartBlock).toBeDefined();
-    expect(sessionStartBlock).toContain("hook/heartbeat.sh");
+  it("the hooks json block does NOT wire SessionEnd (decision: no POST)", () => {
+    const hooksBlock = jsonBlocks.find((b) => b.includes('"hooks"'));
+    expect(hooksBlock).toBeDefined();
+    expect(hooksBlock, "the hooks json block must not wire SessionEnd").not.toContain(
+      '"SessionEnd"',
+    );
+  });
+
+  it("the hooks json block references the hook script's repo-relative path", () => {
+    const hooksBlock = jsonBlocks.find((b) => b.includes('"hooks"'));
+    expect(hooksBlock).toBeDefined();
+    expect(hooksBlock).toContain("hook/heartbeat.sh");
   });
 
   it("mentions the CLAUDE_DISPLAY_URL env var so users can override the target", () => {
     expect(readme).toContain("CLAUDE_DISPLAY_URL");
+  });
+
+  it("mentions the CLAUDE_DISPLAY_STATUS env var so users can force any of the eight statuses", () => {
+    expect(readme).toContain("CLAUDE_DISPLAY_STATUS");
+  });
+
+  it("references docs/decisions/0002-hook-status-mapping.md for the eight-value taxonomy", () => {
+    expect(readme).toContain("docs/decisions/0002-hook-status-mapping.md");
   });
 });
