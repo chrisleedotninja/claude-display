@@ -6,6 +6,13 @@ import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
 import { tokensForStatus, isAttentionStatus } from "./status-tokens.js";
 import { TONE_GROUPS, filterCardsByTones } from "./status-tones.js";
+import {
+  hydrateActiveTones,
+  hydrateVisibleFields,
+  writeActiveTones,
+  writeVisibleFields,
+  createCoalescingWriter,
+} from "./tweaks-persistence.js";
 
 const html = htm.bind(h);
 
@@ -445,11 +452,30 @@ export async function mount(rootEl) {
   // existing `records` pattern because the vendored Preact ships without
   // hooks. Defaults closed (`false`).
   let panelOpen = false;
+  // Persistence injection point (chore [039]). The Tweaks-panel selections
+  // are hydrated from and written back to a caller-supplied storage stub.
+  // In a real browser the stub is `globalThis.localStorage` and the
+  // scheduler is `queueMicrotask`. In a non-DOM environment (unit tests of
+  // pure helpers) `typeof localStorage === "undefined"` — fall back to a
+  // no-op storage and a synchronous scheduler so `mount()` keeps running.
+  // Mirrors the existing `typeof EventSource !== "undefined"` guard
+  // pattern used for the live-channel boot path.
+  const storage =
+    typeof localStorage !== "undefined"
+      ? globalThis.localStorage
+      : { getItem: () => null, setItem: () => {} };
+  const scheduleWrite =
+    typeof localStorage !== "undefined"
+      ? (fn) => queueMicrotask(fn)
+      : (fn) => fn();
   // Tweaks-panel tonal filters (chore [036]). Default on first load is
   // "all four tones active" (AC3); the Set lives in closure-level state for
   // the same hook-less reason as `panelOpen` and `records`. Toggled via
-  // `toggleActiveTone` which always allocates a fresh Set.
-  let activeTones = new Set(TONE_GROUPS);
+  // `toggleActiveTone` which always allocates a fresh Set. Hydrated from
+  // the persistence layer (chore [039]) so a previously-applied selection
+  // is reapplied on reload — `hydrateActiveTones` falls back to a fresh
+  // `new Set(TONE_GROUPS)` when the stored value is missing or malformed.
+  let activeTones = hydrateActiveTones(storage, TONE_GROUPS);
   // Tweaks-panel field-visibility toggles (chore [037]). Default on first
   // load is "all five toggles on" (AC5) — every metadata field renders for
   // every card whose record carries it. The Set lives in closure-level
@@ -457,8 +483,20 @@ export async function mount(rootEl) {
   // `activeTones`. Toggled via `toggleVisibleField` which always allocates
   // a fresh Set; field-stripping happens in `draw()` via `stripHiddenFields`
   // so the existing absent-value-omits-the-element branches in `Card`
-  // (chore [003]) stay untouched and AC4 holds automatically.
-  let visibleFields = new Set(["repo", "branch", "session", "desktop", "elapsed"]);
+  // (chore [003]) stay untouched and AC4 holds automatically. Hydrated
+  // from the persistence layer (chore [039]).
+  let visibleFields = hydrateVisibleFields(storage, new Set(["repo", "branch", "session", "desktop", "elapsed"]));
+  // Coalescing writers (chore [039]). A burst of synchronous toggles
+  // produces exactly one write per writer of the final snapshot — the
+  // injected `scheduleWrite` defers the flush so the writer collapses
+  // intermediate states. Each toggle handler calls `.schedule(snapshot)`
+  // alongside the existing `draw()` re-render.
+  const tonesWriter = createCoalescingWriter(scheduleWrite, (snapshot) =>
+    writeActiveTones(storage, snapshot, TONE_GROUPS),
+  );
+  const fieldsWriter = createCoalescingWriter(scheduleWrite, (snapshot) =>
+    writeVisibleFields(storage, snapshot, ["repo", "branch", "session", "desktop", "elapsed"]),
+  );
   // Wrap the render call through the View Transitions API when available so
   // a reorder-by-recency animates in place rather than full-page repainting
   // (chore [015]). In non-DOM environments (unit tests) `withReorderTransition`
@@ -469,10 +507,12 @@ export async function mount(rootEl) {
   };
   const toggleTone = (tone) => {
     activeTones = toggleActiveTone(activeTones, tone);
+    tonesWriter.schedule(activeTones);
     draw();
   };
   const toggleField = (field) => {
     visibleFields = toggleVisibleField(visibleFields, field);
+    fieldsWriter.schedule(visibleFields);
     draw();
   };
   const draw = () => {
