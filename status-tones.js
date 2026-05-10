@@ -9,3 +9,17 @@
 export const TONE_GROUPS = Object.freeze(
   new Set(["attention", "active", "success", "neutral"]),
 );
+
+// Frozen partition of the eight status strings into the four tone groups.
+// `attention` = approval/waiting/blocked; `active` = working/tests/reviewing;
+// `success` = success; `neutral` = idle. Locked by parent spec [008].
+export const STATUS_TONES = Object.freeze({
+  approval: "attention",
+  waiting: "attention",
+  blocked: "attention",
+  working: "active",
+  tests: "active",
+  reviewing: "active",
+  success: "success",
+  idle: "neutral",
+});
