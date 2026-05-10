@@ -9,9 +9,9 @@ Bring up the server, point two Claude Code sessions at it, and observe two cards
 Prerequisites: Bun and Claude Code already installed locally. No other tooling, no auth, no external network calls.
 
 1. In shell A (server), from the repo root: `bun run vendor` once after clone, then `bun run start`. The server is now listening on `http://127.0.0.1:7878`.
-2. In each of shells B and C (two separate Claude Code sessions, each in its own terminal pane), edit `~/.claude/settings.json` to add the `SessionStart` hook block from [Configure the hook in Claude Code](#configure-the-hook-in-claude-code) below, replacing `/ABS/PATH/TO/claude-display` with the absolute path to your checkout.
-3. Still in shells B and C, start `claude` in each pane. The hook fires on session start and POSTs an event to the server.
-4. Open `http://127.0.0.1:7878/` in a browser. Refresh once after starting each Claude Code session. You should see two cards, one per session, each showing its 8-character identifier and an `active` status indicator.
+2. In each of shells B and C (two separate Claude Code sessions, each in its own terminal pane), edit `~/.claude/settings.json` to add the hook block from [Configure the hook in Claude Code](#configure-the-hook-in-claude-code) below, replacing `/ABS/PATH/TO/claude-display` with the absolute path to your checkout.
+3. Still in shells B and C, start `claude` in each pane. The hook fires on each lifecycle event (session start, prompt submit, tool use, notification, stop, etc.) and POSTs the corresponding status to the server.
+4. Open `http://127.0.0.1:7878/` in a browser. Refresh once after starting each Claude Code session. You should see two cards, one per session, each showing its 8-character identifier and a status indicator drawn from the eight-value taxonomy (see [`docs/decisions/0002-hook-status-mapping.md`](docs/decisions/0002-hook-status-mapping.md)).
 5. Restart one session: in shell B, quit `claude`, then re-run `claude` in the same pane and same `cwd`. Refresh the dashboard. The card count is unchanged (still two); shell B's existing card has updated rather than a third card appearing.
 6. Quit `claude` in shells B and C and stop the server in shell A with Ctrl-C when done. The whole walkthrough has run on `127.0.0.1` only with no auth or external network calls.
 
@@ -50,31 +50,53 @@ After `bun run start`, open `http://127.0.0.1:7878/` in a browser. The page rend
 
 ## Configure the hook in Claude Code
 
-Add the following to your `~/.claude/settings.json` to wire each Claude Code session up to a running `claude-display` server. Replace `/ABS/PATH/TO/claude-display` with the absolute path to your checkout:
+Add the following to your `~/.claude/settings.json` to wire each Claude Code session up to a running `claude-display` server. Replace `/ABS/PATH/TO/claude-display` with the absolute path to your checkout. Each event in the locked mapping (see [`docs/decisions/0002-hook-status-mapping.md`](docs/decisions/0002-hook-status-mapping.md)) gets its own block; `SessionEnd` is intentionally omitted (the decision says no POST):
 
 ```json
 {
   "hooks": {
     "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/ABS/PATH/TO/claude-display/hook/heartbeat.sh"
-          }
-        ]
-      }
+      { "hooks": [ { "type": "command", "command": "/ABS/PATH/TO/claude-display/hook/heartbeat.sh" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "/ABS/PATH/TO/claude-display/hook/heartbeat.sh" } ] }
+    ],
+    "PreToolUse": [
+      { "hooks": [ { "type": "command", "command": "/ABS/PATH/TO/claude-display/hook/heartbeat.sh" } ] }
+    ],
+    "PostToolUse": [
+      { "hooks": [ { "type": "command", "command": "/ABS/PATH/TO/claude-display/hook/heartbeat.sh" } ] }
+    ],
+    "PreCompact": [
+      { "hooks": [ { "type": "command", "command": "/ABS/PATH/TO/claude-display/hook/heartbeat.sh" } ] }
+    ],
+    "Notification": [
+      { "hooks": [ { "type": "command", "command": "/ABS/PATH/TO/claude-display/hook/heartbeat.sh" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "/ABS/PATH/TO/claude-display/hook/heartbeat.sh" } ] }
+    ],
+    "SubagentStop": [
+      { "hooks": [ { "type": "command", "command": "/ABS/PATH/TO/claude-display/hook/heartbeat.sh" } ] }
     ]
   }
 }
 ```
 
-The hook is an executable `bash` script. On each `SessionStart` it computes a stable per-session id from `${HOSTNAME}:${TMUX_PANE:-${TTY:-PPID-$PPID}}:${cwd}` (8-char SHA-256 prefix) and POSTs `{ id, id_raw, status: "active" }` to the local server. Two concurrent sessions in different panes get distinct ids; restarting a session in the same pane and `cwd` reuses the same id, so the existing record updates rather than duplicates.
+The hook is an executable `bash` script. On each fire it computes a stable per-session id from `${HOSTNAME}:${TMUX_PANE:-${TTY:-PPID-$PPID}}:${cwd}` (8-char SHA-256 prefix) and POSTs `{ id, id_raw, status }` to the local server, where `status` is drawn from the eight-value taxonomy locked in [`docs/decisions/0002-hook-status-mapping.md`](docs/decisions/0002-hook-status-mapping.md). Two concurrent sessions in different panes get distinct ids; restarting a session in the same pane and `cwd` reuses the same id, so the existing record updates rather than duplicates.
 
 Override the server URL with `CLAUDE_DISPLAY_URL` (defaults to `http://127.0.0.1:7878`):
 
 ```
 CLAUDE_DISPLAY_URL=http://127.0.0.1:9000 /ABS/PATH/TO/claude-display/hook/heartbeat.sh
 ```
+
+The hook auto-derives a status from the Claude Code event name. To force one of the eight values explicitly — handy for the four override-only statuses (`tests`, `reviewing`, `success`, `blocked`) — set `CLAUDE_DISPLAY_STATUS`:
+
+```
+env CLAUDE_DISPLAY_STATUS=tests claude
+```
+
+A valid override wins verbatim over the auto-derivation; an unset, empty, or invalid value silently falls through to auto-derivation. `SessionEnd` never POSTs regardless of the override.
 
 If the server is not running, the hook exits cleanly within ~1s and never blocks or errors the session.
