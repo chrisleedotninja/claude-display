@@ -1,5 +1,9 @@
 import { describe, it, expect } from "bun:test";
-import { TONE_GROUPS, STATUS_TONES } from "../status-tones.js";
+import {
+  TONE_GROUPS,
+  STATUS_TONES,
+  toneForStatus,
+} from "../status-tones.js";
 
 const EXPECTED_TONES = ["attention", "active", "success", "neutral"];
 
@@ -47,5 +51,13 @@ describe("STATUS_TONES", () => {
 
   it("is frozen", () => {
     expect(Object.isFrozen(STATUS_TONES)).toBe(true);
+  });
+});
+
+describe("toneForStatus", () => {
+  it("returns the matching tone-group string for every allow-list status", () => {
+    for (const key of Object.keys(EXPECTED_STATUS_TONES)) {
+      expect(toneForStatus(key)).toBe(STATUS_TONES[key]);
+    }
   });
 });
