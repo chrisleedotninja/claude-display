@@ -134,6 +134,39 @@ export function toggleVisibleField(prev, field) {
   return next;
 }
 
+// Pure helper: return a new array of card view-model objects with the
+// hidden metadata fields removed. The vocabulary mapping is fixed:
+// the `"session"` toggle key strips the `session_label` property; the
+// other four (`"repo"`, `"branch"`, `"desktop"`, `"elapsed"`) strip the
+// same-named property. Stripping a property the card never carried is a
+// no-op (does not introduce the property and does not throw). The input
+// array and its card objects are never mutated; every returned card is a
+// fresh shallow-clone object so a downstream renderer cannot accidentally
+// observe a hidden field via reference identity. Pure so AC2 / AC3 / AC4
+// correctness is verifiable without a DOM. See chore [037].
+const FIELD_TO_CARD_KEY = Object.freeze({
+  repo: "repo",
+  branch: "branch",
+  session: "session_label",
+  desktop: "desktop",
+  elapsed: "elapsed",
+});
+export function stripHiddenFields(cards, visibleFields) {
+  const hiddenKeys = [];
+  for (const field of Object.keys(FIELD_TO_CARD_KEY)) {
+    if (!visibleFields.has(field)) {
+      hiddenKeys.push(FIELD_TO_CARD_KEY[field]);
+    }
+  }
+  return cards.map((card) => {
+    const next = { ...card };
+    for (const key of hiddenKeys) {
+      delete next[key];
+    }
+    return next;
+  });
+}
+
 // Pure upsert: given the previous cards array and one incoming record,
 // return a new cards array. If the record's id already appears in cards,
 // the matching entry is replaced in place (same index, same length); if
