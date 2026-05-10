@@ -100,3 +100,37 @@ describe("served /app.js carries an open/close affordance wired to the toggle he
     expect(hasClickHandler).toBe(true);
   });
 });
+
+describe("served /app.js panel surface renders a header identifying it as the Tweaks panel (Step 4)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js mentions the tweaks-panel-header class string", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("tweaks-panel-header")).toBe(true);
+  });
+
+  it("served /app.js renders the literal label 'Tweaks' inside the same conditional branch as the surface class", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Walk forward from the panel-surface class to the next closing of its
+    // template literal (`); within that span the user-facing label "Tweaks"
+    // and the header class must both appear, proving the header sits inside
+    // the surface's open-state branch.
+    const surfaceIdx = body.indexOf("tweaks-panel-surface");
+    expect(surfaceIdx).toBeGreaterThan(-1);
+    const closeIdx = body.indexOf("`", surfaceIdx);
+    expect(closeIdx).toBeGreaterThan(surfaceIdx);
+    const span = body.slice(surfaceIdx, closeIdx);
+    expect(span.includes("tweaks-panel-header")).toBe(true);
+    expect(span.includes("Tweaks")).toBe(true);
+  });
+});
