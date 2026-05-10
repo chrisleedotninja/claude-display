@@ -242,3 +242,53 @@ describe("served /app.js renders one field-toggle control per metadata field ins
     expect(span.includes("tweaks-field-toggle")).toBe(true);
   });
 });
+
+describe("served /app.js wraps filterCardsByTones with stripHiddenFields inside draw() (Step 5)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Walk a balanced parenthesis span starting at the open `(` immediately
+  // after a named call. Returns the substring including the matching `)`.
+  function balancedParenSpan(src, callIdx, callName) {
+    const openParen = callIdx + callName.length;
+    if (src[openParen] !== "(") return null;
+    let depth = 1;
+    for (let i = openParen + 1; i < src.length; i++) {
+      const c = src[i];
+      if (c === "(") depth++;
+      else if (c === ")") {
+        depth--;
+        if (depth === 0) return src.slice(openParen, i + 1);
+      }
+    }
+    return null;
+  }
+
+  it("served /app.js contains a stripHiddenFields( call site whose args reference filterCardsByTones and visibleFields", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // First occurrence is `export function stripHiddenFields`. Find a use
+    // site beyond that — search after the first occurrence.
+    const firstIdx = body.indexOf("stripHiddenFields(");
+    expect(firstIdx).toBeGreaterThan(-1);
+    const useIdx = body.indexOf("stripHiddenFields(", firstIdx + 1);
+    expect(useIdx).toBeGreaterThan(-1);
+    const span = balancedParenSpan(body, useIdx, "stripHiddenFields");
+    expect(span).not.toBeNull();
+    expect(span.includes("filterCardsByTones")).toBe(true);
+    expect(span.includes("visibleFields")).toBe(true);
+  });
+
+  it("the existing filterCardsByTones(cardsFromState(records call site is preserved (regression guard for chore [036])", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(/filterCardsByTones\s*\(\s*cardsFromState\s*\(\s*records\b/.test(body)).toBe(true);
+  });
+});
