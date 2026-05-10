@@ -136,3 +136,25 @@ describe("ADR 0003 per-event auto-derivation table", () => {
     expect(adr).toMatch(/no\s+needs\s+value\s+is\s+auto[- ]emitted/i);
   });
 });
+
+describe("ADR 0003 status-interaction rule (attention-state-only)", () => {
+  const adr = readFileSync(adrPath, "utf8");
+
+  it("contains a section locking the status-interaction rule", () => {
+    expect(adr).toMatch(/status[\s-]+interaction|attention[\s-]+state[\s-]+only/i);
+  });
+
+  it("names all three attention-state status values together with the rule", () => {
+    // Locate a region that mentions all three within close proximity of the rule.
+    expect(adr).toMatch(/approval[\s\S]{0,200}?waiting[\s\S]{0,200}?blocked|blocked[\s\S]{0,200}?waiting[\s\S]{0,200}?approval/i);
+  });
+
+  it("states that the hook does not emit `needs` on any other status", () => {
+    expect(adr).toMatch(/(does\s+not\s+emit|no\s+`?needs`?\s+field|never\s+emits)/i);
+  });
+
+  it("states that the override does not bypass the status filter", () => {
+    // The override-does-not-bypass clause: explicit "even if CLAUDE_DISPLAY_NEEDS is set" wording.
+    expect(adr).toMatch(/even\s+if[\s\S]{0,80}?CLAUDE_DISPLAY_NEEDS|CLAUDE_DISPLAY_NEEDS[\s\S]{0,80}?(does\s+not|cannot|no\s+power)/i);
+  });
+});
