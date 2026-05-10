@@ -5,6 +5,7 @@
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
 import { tokensForStatus, isAttentionStatus } from "./status-tokens.js";
+import { NEEDS_TOKENS, tokensForNeed } from "./needs-tokens.js";
 
 const html = htm.bind(h);
 
@@ -74,6 +75,18 @@ export function cardsFromState(records, now = Date.now()) {
       }
       if (Array.isArray(r.subagents)) {
         card.subagents = r.subagents.map((s) => ({ id: s.id, status: s.status }));
+      }
+      // Optional `needs_tag` projection: only attention-state cards (chore [019]'s
+      // ATTENTION_STATUSES) carry the tag, and only when `needs` resolves to a
+      // recognized wire-enum entry via `tokensForNeed` (chore [035]). The
+      // projection stores the frozen entry by reference so consumers compare
+      // by identity. The renderer derives the per-category key by walking
+      // NEEDS_TOKENS at render time. Mirrors the conditional-assign pattern
+      // used for session_label / desktop / elapsed: the key is absent from
+      // the view-model when the projection does not apply.
+      if (isAttentionStatus(r.status)) {
+        const tag = tokensForNeed(r.needs);
+        if (tag !== null) card.needs_tag = tag;
       }
       return card;
     })
