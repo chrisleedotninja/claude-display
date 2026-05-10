@@ -158,3 +158,15 @@ describe("ADR 0003 status-interaction rule (attention-state-only)", () => {
     expect(adr).toMatch(/even\s+if[\s\S]{0,80}?CLAUDE_DISPLAY_NEEDS|CLAUDE_DISPLAY_NEEDS[\s\S]{0,80}?(does\s+not|cannot|no\s+power)/i);
   });
 });
+
+describe("ADR 0003 cites parent PRD and precedent ADR", () => {
+  const adr = readFileSync(adrPath, "utf8");
+
+  it("cites the parent issue `[006]` in prose", () => {
+    expect(adr).toMatch(/\[006\]/);
+  });
+
+  it("cites the precedent ADR by repo-relative path docs/decisions/0002-hook-status-mapping.md", () => {
+    expect(adr).toContain("docs/decisions/0002-hook-status-mapping.md");
+  });
+});
