@@ -218,3 +218,107 @@ describe("served Card source references card-needs-tag", () => {
     expect(/data-need\s*=/.test(body)).toBe(true);
   });
 });
+
+describe("served /styles.css defines .card-needs-tag and seven per-category rules", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  const SEVEN_KEYS = [
+    "approve-tool",
+    "answer-question",
+    "provide-input",
+    "pick-option",
+    "confirm-destructive",
+    "resolve-conflict",
+    "review-diff",
+  ];
+
+  it("defines a base .card-needs-tag rule with at least one declaration", async () => {
+    const res = await fetch(`${baseUrl}/styles.css`);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    // Match a `.card-needs-tag` selector that is NOT followed by `[` (i.e. the
+    // base rule, not a per-key attribute selector). The declaration block
+    // between { and } must contain at least one declaration (non-whitespace,
+    // semicolon-terminated or single).
+    const re = /\.card-needs-tag(?!\[|-)\s*\{([^}]*)\}/g;
+    const blocks = [];
+    let m;
+    while ((m = re.exec(body)) !== null) blocks.push(m[1]);
+    expect(blocks.length).toBeGreaterThan(0);
+    const anyHasDecl = blocks.some((b) => /\w+\s*:\s*\S+/.test(b));
+    expect(anyHasDecl).toBe(true);
+  });
+
+  for (const key of SEVEN_KEYS) {
+    it(`defines a per-category rule .card-needs-tag[data-need="${key}"] with at least one declaration`, async () => {
+      const res = await fetch(`${baseUrl}/styles.css`);
+      const body = await res.text();
+      // Build a regex that finds the per-key attribute-selector rule. Allow
+      // single or double quotes around the value.
+      const escapedKey = key.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+      const re = new RegExp(
+        `\\.card-needs-tag\\[\\s*data-need\\s*=\\s*["']${escapedKey}["']\\s*\\]\\s*\\{([^}]*)\\}`,
+        "g",
+      );
+      const blocks = [];
+      let m;
+      while ((m = re.exec(body)) !== null) blocks.push(m[1]);
+      expect(blocks.length).toBeGreaterThan(0);
+      // Per-key rule's declaration block must be non-empty and contain at
+      // least one declaration.
+      const anyHasDecl = blocks.some((b) => /\w+\s*:\s*\S+/.test(b));
+      expect(anyHasDecl).toBe(true);
+    });
+  }
+
+  it("each per-category rule's declaration block carries at least one declaration not present in the base rule (visually distinct)", async () => {
+    const res = await fetch(`${baseUrl}/styles.css`);
+    const body = await res.text();
+    // Pull the base block(s) declarations as a set of normalized "prop:value;"
+    // strings so we can compare per-category rule contents against them.
+    const baseRe = /\.card-needs-tag(?!\[|-)\s*\{([^}]*)\}/g;
+    const baseDecls = new Set();
+    let bm;
+    while ((bm = baseRe.exec(body)) !== null) {
+      const decls = bm[1]
+        .split(";")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      for (const d of decls) baseDecls.add(d);
+    }
+    expect(baseDecls.size).toBeGreaterThan(0);
+
+    for (const key of SEVEN_KEYS) {
+      const escapedKey = key.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+      const perRe = new RegExp(
+        `\\.card-needs-tag\\[\\s*data-need\\s*=\\s*["']${escapedKey}["']\\s*\\]\\s*\\{([^}]*)\\}`,
+        "g",
+      );
+      let perBlock = null;
+      let pm;
+      while ((pm = perRe.exec(body)) !== null) {
+        perBlock = pm[1];
+        break;
+      }
+      expect(perBlock).not.toBeNull();
+      const perDecls = perBlock
+        .split(";")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      // At least one per-category declaration must NOT appear verbatim in the
+      // base rule — that is the AC2 "visually distinct" guarantee.
+      const distinct = perDecls.some((d) => !baseDecls.has(d));
+      expect(distinct).toBe(true);
+    }
+  });
+});
