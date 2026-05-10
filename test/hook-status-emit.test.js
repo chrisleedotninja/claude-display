@@ -242,3 +242,60 @@ describe("Notification with permission message auto-derives approval", () => {
     expect(records[0].status).toBe("approval");
   });
 });
+
+describe("Notification without permission message auto-derives waiting", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("maps Notification with a non-permission message -> 'waiting'", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%12",
+      CLAUDE_DISPLAY_URL: baseUrl,
+    };
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({
+        cwd: "/n2",
+        hook_event_name: "Notification",
+        message: "Claude is waiting for your input",
+      }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe("waiting");
+  });
+
+  it("treats an absent message field as not matching the permission probe", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%13",
+      CLAUDE_DISPLAY_URL: baseUrl,
+    };
+    const { exitCode, stderr } = await runHook({
+      env,
+      // No `message` field at all.
+      stdin: JSON.stringify({ cwd: "/n3", hook_event_name: "Notification" }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe("waiting");
+  });
+});
