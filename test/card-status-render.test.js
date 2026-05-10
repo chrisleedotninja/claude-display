@@ -121,32 +121,3 @@ describe("Card renders the per-status color and icon (served-source contract)", 
   });
 });
 
-describe("no rail/pulse/keyframes/animation leaks (AC4 negative assertion)", () => {
-  let handle;
-  let baseUrl;
-
-  beforeEach(() => {
-    handle = createServer({ port: 0, hostname: "127.0.0.1" });
-    baseUrl = `http://127.0.0.1:${handle.server.port}`;
-  });
-
-  afterEach(() => {
-    handle.stop();
-  });
-
-  it("served /app.js contains none of: rail, pulse, @keyframes, animation:", async () => {
-    const body = (await (await fetch(`${baseUrl}/app.js`)).text()).toLowerCase();
-    expect(body.includes("rail")).toBe(false);
-    expect(body.includes("pulse")).toBe(false);
-    expect(body.includes("@keyframes")).toBe(false);
-    expect(body.includes("animation:")).toBe(false);
-  });
-
-  it("served /styles.css contains none of: rail, pulse, @keyframes, animation:", async () => {
-    const body = (await (await fetch(`${baseUrl}/styles.css`)).text()).toLowerCase();
-    expect(body.includes("rail")).toBe(false);
-    expect(body.includes("pulse")).toBe(false);
-    expect(body.includes("@keyframes")).toBe(false);
-    expect(body.includes("animation:")).toBe(false);
-  });
-});

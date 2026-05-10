@@ -26,3 +26,17 @@ export function tokensForStatus(status) {
   }
   return STATUS_TOKENS.idle;
 }
+
+// Sibling table on the status axis: which statuses are "attention" — i.e. the
+// dashboard should treat them as visually loud (rail + pulse). Settled in
+// parent spec [004]; the visual treatment is added by chore [019].
+export const ATTENTION_STATUSES = Object.freeze(
+  new Set(["approval", "waiting", "blocked"]),
+);
+
+// Pure predicate. Returns true only for the three attention-set strings;
+// false for any other input (other allow-list keys, unknown strings, empty
+// string, undefined, null, non-string), mirroring tokensForStatus's tolerance.
+export function isAttentionStatus(status) {
+  return typeof status === "string" && ATTENTION_STATUSES.has(status);
+}
