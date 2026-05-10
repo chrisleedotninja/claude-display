@@ -46,7 +46,7 @@ describe("hook captures event_at at fire time", () => {
     const fireStart = Date.now();
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd: "/some/dir" }),
+      stdin: JSON.stringify({ cwd: "/some/dir", hook_event_name: "SessionStart" }),
     });
     const fireEnd = Date.now();
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
@@ -73,7 +73,7 @@ describe("hook captures event_at at fire time", () => {
 
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd: "/some/other/dir" }),
+      stdin: JSON.stringify({ cwd: "/some/other/dir", hook_event_name: "SessionStart" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
@@ -83,7 +83,7 @@ describe("hook captures event_at at fire time", () => {
     const r = records[0];
     expect(typeof r.id).toBe("string");
     expect(r.id.length).toBeGreaterThan(0);
-    expect(r.status).toBe("active");
+    expect(r.status).toBe("idle");
     expect(typeof r.event_at).toBe("number");
   });
 });
