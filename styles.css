@@ -178,4 +178,27 @@ body {
 .tweaks-panel-body {
   color: var(--muted);
   font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Per-tone filter controls (chore [036]). Each control sits in the panel
+ * body with a stable class plus an `is-on` modifier so the on/off state is
+ * visually unambiguous. All declarations source the existing :root Tokyo
+ * Night Storm palette vars — no new top-level hex literals are introduced. */
+.tweaks-tone-filter {
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tweaks-tone-filter.is-on {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
 }
