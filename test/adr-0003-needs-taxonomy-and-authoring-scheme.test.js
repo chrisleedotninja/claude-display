@@ -32,3 +32,22 @@ describe("ADR 0003 no deferred-content markers and is Accepted", () => {
     expect(adr).toMatch(/Status:\s*Accepted/);
   });
 });
+
+describe("ADR 0003 wire enum (seven values)", () => {
+  const adr = readFileSync(adrPath, "utf8");
+  const wireEnum = [
+    "approve-tool",
+    "answer-question",
+    "provide-input",
+    "pick-option",
+    "confirm-destructive",
+    "resolve-conflict",
+    "review-diff",
+  ];
+
+  for (const value of wireEnum) {
+    it(`names the wire-enum value \`${value}\``, () => {
+      expect(adr, `expected wire-enum value '${value}' in ADR`).toContain(value);
+    });
+  }
+});
