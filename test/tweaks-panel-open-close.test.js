@@ -231,3 +231,34 @@ describe("served /app.js panelOpen never gates cards or per-card fields (Step 5,
     expect(span.includes("panelOpen")).toBe(false);
   });
 });
+
+describe("served /app.js panel renders cleanly when empty (Step 6, AC5)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js mentions the tweaks-panel-body class string", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("tweaks-panel-body")).toBe(true);
+  });
+
+  it("served /app.js does not gate the panel surface on a second condition beyond panelOpen", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // No `panelOpen && (… && …) … tweaks-panel-surface` chained-AND
+    // construct gating the surface on a second condition (e.g.
+    // `panelOpen && hasContent && html\`…surface…\``). The defensible
+    // approximation: between any `panelOpen && ` and the next
+    // `tweaks-panel-surface` occurrence, the span must not contain another
+    // ` && `. We assert the negative form directly with a regex.
+    const gateRe = /panelOpen\s*&&\s*[^;]*?&&[^;]*?tweaks-panel-surface/;
+    expect(gateRe.test(body)).toBe(false);
+  });
+});
