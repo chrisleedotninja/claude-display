@@ -264,7 +264,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   `;
 }
 
-function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone, visibleFields, onToggleField }) {
+function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggleTone, visibleFields, onToggleField }) {
   const cardsTree =
     cards.length === 0
       ? html`<div class="empty-state">No sessions yet.</div>`
@@ -354,6 +354,8 @@ function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone,
     : null;
   return html`
     <div>
+      <${HeaderStrip} now=${now} />
+      <${StatsStrip} cards=${cards} />
       <button
         type="button"
         class="tweaks-panel-toggle"
@@ -627,8 +629,9 @@ export async function mount(rootEl) {
     draw();
   };
   const draw = () => {
+    const now = Date.now();
     const cards = stripHiddenFields(
-      filterCardsByTones(cardsFromState(records, Date.now()), activeTones),
+      filterCardsByTones(cardsFromState(records, now), activeTones),
       visibleFields,
     );
     return withReorderTransition(
@@ -637,6 +640,7 @@ export async function mount(rootEl) {
         render(
           html`<${Dashboard}
             cards=${cards}
+            now=${now}
             panelOpen=${panelOpen}
             onTogglePanel=${togglePanel}
             activeTones=${activeTones}
