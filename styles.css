@@ -202,3 +202,25 @@ body {
   color: var(--bg);
   border-color: var(--accent);
 }
+
+/* Per-field visibility toggles (chore [037]). Each control sits alongside
+ * the tone filters in the panel body with a stable class plus an `is-on`
+ * modifier so the on/off state is visually unambiguous. All declarations
+ * source the existing :root Tokyo Night Storm palette vars — no new
+ * top-level hex literals are introduced. Mirrors `.tweaks-tone-filter`
+ * so the two control families share visual language. */
+.tweaks-field-toggle {
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tweaks-field-toggle.is-on {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
