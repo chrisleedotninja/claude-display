@@ -355,3 +355,78 @@ body {
   border-color: #e0af68;
   background: rgba(224, 175, 104, 0.08);
 }
+
+/* Header strip (chore [049]). Two-column flex layout with the mono dashboard
+ * title on the left (cyan accent) and the live HH:MM clock on the right.
+ * All color and font values reference only --tn-* or --font-* custom properties. */
+.ms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--tn-bg-darker);
+  border-bottom: 1px solid var(--tn-rule);
+  padding: 0.5rem 1rem;
+  font-family: var(--font-mono);
+  color: var(--tn-cyan);
+  font-size: 14px;
+  margin-bottom: 0.75rem;
+  border-radius: 8px;
+}
+
+.ms-head-title {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.ms-head-clock {
+  font-size: 13px;
+  color: var(--tn-muted);
+  font-family: var(--font-mono);
+}
+
+/* Stats strip (chore [049]). Five-cell flex row with --tn-bg-dark background,
+ * --tn-rule 1px border, 8px border-radius, matching reference geometry.
+ * Each cell is a flex column centered with distinct label and value typography.
+ * All color and font values reference only --tn-* or --font-* custom properties. */
+.ms-board {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  background: var(--tn-bg-dark);
+  border: 1px solid var(--tn-rule);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.ms-stat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  gap: 0.15rem;
+  border-right: 1px solid var(--tn-rule);
+}
+
+.ms-stat-cell:last-child {
+  border-right: none;
+}
+
+.ms-stat-label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--tn-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.ms-stat-value {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--tn-fg);
+  line-height: 1;
+}
