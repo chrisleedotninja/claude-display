@@ -64,3 +64,16 @@ body {
   padding: 2rem 0;
   text-align: center;
 }
+
+/* Attention-state visual loudness (chore [019]). Cards whose status is in the
+ * attention set (approval / waiting / blocked) carry the .is-attention class
+ * from app.js. The colored bar along the card's left edge uses the same
+ * per-status color the [018] slice already exposes via --card-status-color.
+ * All such treatment is scoped under .card.is-attention so non-attention cards
+ * never inherit either the bar or the pulse animation.
+ */
+.card.is-attention {
+  /* attention-rail along the left edge, in the per-status color */
+  border-left: 4px solid var(--card-status-color);
+  padding-left: calc(1.25rem - 3px);
+}
