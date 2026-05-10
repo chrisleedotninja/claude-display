@@ -109,3 +109,45 @@ describe("filterCardsByTones — boundary cases", () => {
     expect(cards).toEqual(snapshot);
   });
 });
+
+describe("filterCardsByTones — partial active-tones set", () => {
+  // One card per tone group, plus one card with an unknown-status string
+  // (which resolves to neutral via the fallback).
+  const fixture = Object.freeze([
+    { id: "a-attention", status: "approval" },
+    { id: "b-active", status: "working" },
+    { id: "c-success", status: "success" },
+    { id: "d-neutral", status: "idle" },
+    { id: "e-unknown", status: "garbage" },
+  ]);
+
+  it("keeps only attention cards when activeTones = {attention}, in original order", () => {
+    const result = filterCardsByTones(fixture, new Set(["attention"]));
+    expect(result.map((c) => c.id)).toEqual(["a-attention"]);
+  });
+
+  it("keeps active and success cards when activeTones = {active, success}", () => {
+    const result = filterCardsByTones(
+      fixture,
+      new Set(["active", "success"]),
+    );
+    expect(result.map((c) => c.id)).toEqual(["b-active", "c-success"]);
+  });
+
+  it("includes the unknown-status card when neutral is active", () => {
+    const result = filterCardsByTones(fixture, new Set(["neutral"]));
+    expect(result.map((c) => c.id)).toEqual(["d-neutral", "e-unknown"]);
+  });
+
+  it("excludes the unknown-status card when neutral is not active", () => {
+    const result = filterCardsByTones(
+      fixture,
+      new Set(["attention", "active", "success"]),
+    );
+    expect(result.map((c) => c.id)).toEqual([
+      "a-attention",
+      "b-active",
+      "c-success",
+    ]);
+  });
+});
