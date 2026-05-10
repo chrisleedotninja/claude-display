@@ -5,6 +5,7 @@
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
 import { tokensForStatus, isAttentionStatus } from "./status-tokens.js";
+import { TONE_GROUPS, filterCardsByTones } from "./status-tones.js";
 
 const html = htm.bind(h);
 
@@ -345,12 +346,21 @@ export async function mount(rootEl) {
   // existing `records` pattern because the vendored Preact ships without
   // hooks. Defaults closed (`false`).
   let panelOpen = false;
+  // Tweaks-panel tonal filters (chore [036]). Default on first load is
+  // "all four tones active" (AC3); the Set lives in closure-level state for
+  // the same hook-less reason as `panelOpen` and `records`. Toggled via
+  // `toggleActiveTone` which always allocates a fresh Set.
+  let activeTones = new Set(TONE_GROUPS);
   // Wrap the render call through the View Transitions API when available so
   // a reorder-by-recency animates in place rather than full-page repainting
   // (chore [015]). In non-DOM environments (unit tests) `withReorderTransition`
   // falls back to a synchronous call.
   const togglePanel = () => {
     panelOpen = nextPanelOpen(panelOpen);
+    draw();
+  };
+  const toggleTone = (tone) => {
+    activeTones = toggleActiveTone(activeTones, tone);
     draw();
   };
   const draw = () => {
