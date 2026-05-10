@@ -23,3 +23,9 @@ export const STATUS_TONES = Object.freeze({
   success: "success",
   idle: "neutral",
 });
+
+// Pure resolver. Returns the tone-group string for any of the eight
+// allow-list statuses.
+export function toneForStatus(status) {
+  return STATUS_TONES[status];
+}
