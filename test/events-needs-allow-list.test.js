@@ -102,4 +102,42 @@ describe("POST /events `needs` field — frozen seven-value allow-list", () => {
     // No `needs` key on the record — the unknown string was dropped silently.
     expect(Object.hasOwn(rec, "needs")).toBe(false);
   });
+
+  it("drops wrong-type needs values silently (number, boolean, array)", async () => {
+    // Each case posts a different non-string `needs` payload under a fresh id
+    // so the membership check's coercion behavior is exercised independently
+    // for each non-string flavor.
+    const cases = [
+      { id: "badtype1", needs: 42 },
+      { id: "badtype2", needs: true },
+      { id: "badtype3", needs: ["approve-tool"] },
+    ];
+
+    for (const c of cases) {
+      const postRes = await fetch(`${baseUrl}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: c.id,
+          id_raw: `host:pane:/cwd/${c.id}`,
+          status: "working",
+          needs: c.needs,
+        }),
+      });
+      // "Drop, do not reject" — wrong-type needs does not 4xx the event.
+      expect([200, 202]).toContain(postRes.status);
+    }
+
+    const records = await (await fetch(`${baseUrl}/api/state`)).json();
+    expect(records).toHaveLength(cases.length);
+
+    for (const c of cases) {
+      const rec = records.find((r) => r.id === c.id);
+      expect(rec).toBeDefined();
+      // The rest of the payload still round-trips.
+      expect(rec.status).toBe("working");
+      // The validator's membership test must not silently coerce non-strings.
+      expect(Object.hasOwn(rec, "needs")).toBe(false);
+    }
+  });
 });
