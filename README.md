@@ -1,6 +1,6 @@
 # claude-display
 
-A localhost-only heartbeat server that records the latest status of each Claude Code session and exposes a state read endpoint. Single-file Bun server, no `node_modules` at runtime, no build step.
+A localhost-only status board for running Claude Code sessions. Each session reports its latest status to a Bun server via a hook; the dashboard renders one card per session, drawn from an eight-value status taxonomy with a visually loud treatment for attention states (`approval`, `waiting`, `blocked`) and a "needs from you" tag naming the specific ask. Subagents nest under their parent card; the most-recently-updated card bubbles to the top; live updates arrive over SSE so no manual refresh is needed. A Tweaks panel filters cards by tone group and toggles per-card metadata fields, with selections persisted across reloads. Single-file Bun server, no `node_modules` at runtime, no build step.
 
 ## Quickstart
 
@@ -11,8 +11,8 @@ Prerequisites: Bun and Claude Code already installed locally. No other tooling, 
 1. In shell A (server), from the repo root: `bun run vendor` once after clone, then `bun run start`. The server is now listening on `http://127.0.0.1:7878`.
 2. In each of shells B and C (two separate Claude Code sessions, each in its own terminal pane), edit `~/.claude/settings.json` to add the hook block from [Configure the hook in Claude Code](#configure-the-hook-in-claude-code) below, replacing `/ABS/PATH/TO/claude-display` with the absolute path to your checkout.
 3. Still in shells B and C, start `claude` in each pane. The hook fires on each lifecycle event (session start, prompt submit, tool use, notification, stop, etc.) and POSTs the corresponding status to the server.
-4. Open `http://127.0.0.1:7878/` in a browser. Refresh once after starting each Claude Code session. You should see two cards, one per session, each showing its 8-character identifier and a status indicator drawn from the eight-value taxonomy (see [`docs/decisions/0002-hook-status-mapping.md`](docs/decisions/0002-hook-status-mapping.md)).
-5. Restart one session: in shell B, quit `claude`, then re-run `claude` in the same pane and same `cwd`. Refresh the dashboard. The card count is unchanged (still two); shell B's existing card has updated rather than a third card appearing.
+4. Open `http://127.0.0.1:7878/` in a browser. The page connects to the server over SSE on load, so as each Claude Code session starts and fires hooks, its card appears (and reorders to the top on each update) without a manual refresh. You should see two cards, one per session, each showing its 8-character identifier and a status indicator drawn from the eight-value taxonomy (see [`docs/decisions/0002-hook-status-mapping.md`](docs/decisions/0002-hook-status-mapping.md)).
+5. Restart one session: in shell B, quit `claude`, then re-run `claude` in the same pane and same `cwd`. The card count is unchanged (still two); shell B's existing card has updated rather than a third card appearing.
 6. Quit `claude` in shells B and C and stop the server in shell A with Ctrl-C when done. The whole walkthrough has run on `127.0.0.1` only with no auth or external network calls.
 
 Acceptance checklist (one-to-one with the parent spec [002]):
@@ -73,12 +73,13 @@ The server binds only to `127.0.0.1` and is not reachable from other hosts.
 
 ## Dashboard
 
-After `bun run start`, open `http://127.0.0.1:7878/` in a browser. The page renders one card per recorded session, showing its identifier and most recent status. Refresh the page to pick up new events.
+After `bun run start`, open `http://127.0.0.1:7878/` in a browser. The page renders one card per recorded session, showing its identifier, status, and (when present) repo, branch, tmux/cmux session, aerospace desktop, and elapsed time since the most recent event. Attention-state cards (`approval`, `waiting`, `blocked`) get a colored rail, distinct icon, and a subtle pulse (suppressed under `prefers-reduced-motion`); when a `needs` value is set, attention-state cards also carry a per-category tag (see [`docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md`](docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md)). Subagents render as nested cards under their parent; the most-recently-updated card bubbles to the top. Updates arrive live over SSE — no manual refresh — and the page reconnects automatically if the channel drops. A Tweaks panel filters cards by tone group (attention / active / success / neutral) and toggles per-card metadata fields, with selections persisted in `localStorage`.
 
 ## Endpoints
 
-- `POST /events` — record an event. Body: JSON `{ "id": "<8-char hash>", "id_raw": "<host:pane:cwd>", "status": "<status>" }`. The server stores the latest record per `id`. Responds `202` on success, `400` on missing or malformed fields.
+- `POST /events` — record an event. Body: JSON `{ "id": "<8-char hash>", "id_raw": "<host:pane:cwd>", "status": "<status>", … }`; optional fields include `event_at` (epoch ms), `repo`, `branch`, `session_label`, `desktop`, `parent_id` (for subagent events), and `needs` (one of the seven values from ADR 0003, only meaningful on attention-state events). Status values outside the eight-value enum collapse to `idle`; needs values outside the seven-value allow-list drop silently. Responds `202` on success, `400` on missing or malformed required fields.
 - `GET /api/state` — read the current set of session records as a JSON array. Empty array when no events have been recorded.
+- `GET /events/stream` — Server-Sent Events channel that broadcasts each accepted record as it lands, in insertion order. The dashboard subscribes after its initial `/api/state` fetch.
 
 ## Configure the hook in Claude Code
 
