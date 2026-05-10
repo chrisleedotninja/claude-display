@@ -183,3 +183,62 @@ describe("served /app.js initialises visibleFields to the full five-field set (S
     }
   });
 });
+
+describe("served /app.js renders one field-toggle control per metadata field inside the panel body (Step 4)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js mentions the tweaks-field-toggle class string", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("tweaks-field-toggle")).toBe(true);
+  });
+
+  it("served /app.js mentions the is-on on-state modifier string", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("is-on")).toBe(true);
+  });
+
+  it("renders all five field-name labels inside the panel-body span", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Walk forward from the panel-surface class to the surface template's
+    // closing backtick — same surfaceIdx → closeIdx walk used in
+    // test/tweaks-panel-tone-filters.test.js Step 4.
+    const surfaceIdx = body.indexOf("tweaks-panel-surface");
+    expect(surfaceIdx).toBeGreaterThan(-1);
+    const bodyIdx = body.indexOf("tweaks-panel-body", surfaceIdx);
+    expect(bodyIdx).toBeGreaterThan(surfaceIdx);
+    const closeIdx = body.indexOf("`", surfaceIdx);
+    expect(closeIdx).toBeGreaterThan(bodyIdx);
+    const span = body.slice(bodyIdx, closeIdx);
+    for (const field of ["repo", "branch", "session", "desktop", "elapsed"]) {
+      expect(span.includes(field)).toBe(true);
+    }
+  });
+
+  it("wires the new controls with onClick (or onclick) inside the surface span", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const surfaceIdx = body.indexOf("tweaks-panel-surface");
+    const closeIdx = body.indexOf("`", surfaceIdx);
+    const span = body.slice(surfaceIdx, closeIdx);
+    const hasClickHandler = /\bonClick\b/.test(span) || /\bonclick\b/.test(span);
+    expect(hasClickHandler).toBe(true);
+  });
+
+  it("the existing tweaks-tone-filter substring still appears within the same panel-body span (added alongside, not in place of)", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const surfaceIdx = body.indexOf("tweaks-panel-surface");
+    const closeIdx = body.indexOf("`", surfaceIdx);
+    const span = body.slice(surfaceIdx, closeIdx);
+    expect(span.includes("tweaks-tone-filter")).toBe(true);
+    expect(span.includes("tweaks-field-toggle")).toBe(true);
+  });
+});
