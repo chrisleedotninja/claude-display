@@ -68,3 +68,55 @@ describe("server serves /status-tokens.js", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("Card renders the per-status color and icon (served-source contract)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js imports tokensForStatus from ./status-tokens.js", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(
+      body.includes('from "./status-tokens.js"') ||
+        body.includes("from './status-tokens.js'"),
+    ).toBe(true);
+    expect(body.includes("tokensForStatus")).toBe(true);
+  });
+
+  it("served /app.js writes data-status, --card-status-color, and the card-status-icon class", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("data-status")).toBe(true);
+    expect(body.includes("--card-status-color")).toBe(true);
+    expect(body.includes("card-status-icon")).toBe(true);
+  });
+
+  it("served /styles.css references --card-status-color and .card-status-icon", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    expect(body.includes("--card-status-color")).toBe(true);
+    expect(body.includes(".card-status-icon")).toBe(true);
+  });
+
+  it("served /app.js still references cardsFromState and the root mount (AC5 preserved)", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("cardsFromState")).toBe(true);
+    expect(
+      body.includes("getElementById('root')") ||
+        body.includes('getElementById("root")'),
+    ).toBe(true);
+    expect(body.includes("card-id")).toBe(true);
+  });
+
+  it("served /styles.css still declares the .card silhouette (AC5 preserved)", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    expect(/\.card\b/.test(body)).toBe(true);
+    expect(body.includes("-apple-system")).toBe(true);
+  });
+});
