@@ -36,6 +36,7 @@ const STATIC_FILES = {
   "/styles.css": "styles.css",
   "/status-tokens.js": "status-tokens.js",
   "/status-tones.js": "status-tones.js",
+  "/tweaks-persistence.js": "tweaks-persistence.js",
   "/vendor/preact.module.js": "vendor/preact.module.js",
   "/vendor/htm.module.js": "vendor/htm.module.js",
 };
