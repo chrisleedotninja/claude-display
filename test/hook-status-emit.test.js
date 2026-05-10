@@ -182,3 +182,63 @@ describe("hook auto-derives idle for Stop and SubagentStop", () => {
     });
   }
 });
+
+describe("Notification with permission message auto-derives approval", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("maps Notification with a 'permission' message -> 'approval'", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%10",
+      CLAUDE_DISPLAY_URL: baseUrl,
+    };
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({
+        cwd: "/n",
+        hook_event_name: "Notification",
+        message: "Claude needs your permission to use Bash",
+      }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe("approval");
+  });
+
+  it("treats the 'permission' substring case-insensitively", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%11",
+      CLAUDE_DISPLAY_URL: baseUrl,
+    };
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({
+        cwd: "/n-upper",
+        hook_event_name: "Notification",
+        message: "PERMISSION required",
+      }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe("approval");
+  });
+});
