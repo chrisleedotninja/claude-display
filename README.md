@@ -24,6 +24,38 @@ Acceptance checklist (one-to-one with the parent spec [002]):
 - [ ] Restarting one session in the same pane and `cwd` updates the existing card rather than creating a third (Step 5).
 - [ ] The whole walkthrough runs on localhost (`127.0.0.1`) with no external network calls and no auth (Steps 1–6).
 
+## Validation walkthrough: needs tag
+
+End-to-end confirmation that each of the seven needs categories renders the matching tag with the locked label and per-category visual treatment, plus the two negative cases the parent spec calls out. The authoring scheme behind the seven-value enum is locked in [`docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md`](docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md); this section is procedural only. Every confirmation below is something the operator sees on the dashboard — no internal-state inspection, no `curl`-against-`/api/state`, no console drilling.
+
+Prerequisites: a running server (`bun run start` in shell A) and a browser open at `http://127.0.0.1:7878/`.
+
+In shell B, run the driver script once: `bash hook/needs-walkthrough.sh`. It fires nine cards on the server — one per step below — and prints `step N: …` per fire so script output and dashboard cards line up. The driver invokes the production `hook/heartbeat.sh` (not `curl /events` directly), so each fire exercises the locked authoring-scheme path and the server's allow-list.
+
+Refresh the dashboard once the script finishes. You should see nine cards. Confirm each one by eye:
+
+1. **`approve-tool`** — the card carries the **Approve tool** tag, with its locked icon and the per-category visual treatment.
+2. **`answer-question`** — the card carries the **Answer question** tag, with its locked icon and the per-category visual treatment.
+3. **`provide-input`** — the card carries the **Provide input** tag, with its locked icon and the per-category visual treatment.
+4. **`pick-option`** — the card carries the **Pick option** tag, with its locked icon and the per-category visual treatment.
+5. **`confirm-destructive`** — the card carries the **Confirm destructive** tag, with its locked icon and the per-category visual treatment.
+6. **`resolve-conflict`** — the card carries the **Resolve conflict** tag, with its locked icon and the per-category visual treatment.
+7. **`review-diff`** — the card carries the **Review diff** tag, with its locked icon and the per-category visual treatment.
+8. **Negative case 1** — an attention-state card with no `CLAUDE_DISPLAY_NEEDS` set: the card renders with no tag and no placeholder. The space the tag would have occupied is empty; the card layout otherwise matches the seven cards above.
+9. **Negative case 2** — a non-attention-state card (resolved status `working`) fired with `CLAUDE_DISPLAY_NEEDS` set: the card renders with no needs tag despite the wire payload requesting one. The hook's attention-state filter strips the field; the server's allow-list is a second guard.
+
+Walkthrough checklist (one-to-one with the nine steps above):
+
+- [ ] The card from step 1 shows the **Approve tool** tag.
+- [ ] The card from step 2 shows the **Answer question** tag.
+- [ ] The card from step 3 shows the **Provide input** tag.
+- [ ] The card from step 4 shows the **Pick option** tag.
+- [ ] The card from step 5 shows the **Confirm destructive** tag.
+- [ ] The card from step 6 shows the **Resolve conflict** tag.
+- [ ] The card from step 7 shows the **Review diff** tag.
+- [ ] The card from step 8 (attention-state, no `CLAUDE_DISPLAY_NEEDS`) shows no tag and no placeholder.
+- [ ] The card from step 9 (non-attention-state with `CLAUDE_DISPLAY_NEEDS` set) shows no tag.
+
 ## Run
 
 ```
@@ -98,5 +130,13 @@ env CLAUDE_DISPLAY_STATUS=tests claude
 ```
 
 A valid override wins verbatim over the auto-derivation; an unset, empty, or invalid value silently falls through to auto-derivation. `SessionEnd` never POSTs regardless of the override.
+
+The hook also tags attention-state events with a `needs` category drawn from the seven-value taxonomy locked in [`docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md`](docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md): `approve-tool`, `answer-question`, `provide-input`, `pick-option`, `confirm-destructive`, `resolve-conflict`, `review-diff`. The hook auto-derives `approve-tool` from a `Notification` whose message contains "permission" (case-insensitive); every other category is reachable explicitly via `CLAUDE_DISPLAY_NEEDS`:
+
+```
+env CLAUDE_DISPLAY_NEEDS=review-diff CLAUDE_DISPLAY_STATUS=blocked claude
+```
+
+A valid `CLAUDE_DISPLAY_NEEDS` wins verbatim over the auto-derivation; an unset, empty, or invalid value silently falls through. The `needs` field is attached only on attention-state events — events whose resolved status is one of `approval`, `waiting`, or `blocked`. On any other status (`working`, `tests`, `reviewing`, `success`, `idle`) the hook emits no `needs` field, even with a valid `CLAUDE_DISPLAY_NEEDS` set.
 
 If the server is not running, the hook exits cleanly within ~1s and never blocks or errors the session.

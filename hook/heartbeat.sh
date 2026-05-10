@@ -65,6 +65,13 @@ if [ "$hook_event_name" = "SessionEnd" ]; then
   exit 0
 fi
 
+# Lowercased message — used by both the status mapping and the needs
+# auto-derivation table (ADR 0003) for case-insensitive `permission` substring
+# matching. Computed unconditionally so both downstream branches can read it
+# under `set -u`, regardless of whether the status path was reached via the
+# override or via the static map.
+lower_message="$(printf '%s' "$message" | tr '[:upper:]' '[:lower:]')"
+
 # Static map fall-through when no valid override is set.
 if [ -z "$status" ]; then
   case "$hook_event_name" in
@@ -76,7 +83,6 @@ if [ -z "$status" ]; then
       ;;
     Notification)
       # Case-insensitive substring check for "permission".
-      lower_message="$(printf '%s' "$message" | tr '[:upper:]' '[:lower:]')"
       case "$lower_message" in
         *permission*) status="approval" ;;
         *) status="waiting" ;;
@@ -86,6 +92,39 @@ if [ -z "$status" ]; then
       # Event not in the locked map and no override → no POST.
       exit 0
       ;;
+  esac
+fi
+
+# Derive the dashboard `needs` value (ADR 0003-needs-taxonomy-and-authoring-scheme).
+# Order, mirroring the locked authoring scheme:
+#   1. CLAUDE_DISPLAY_NEEDS, if set to one of the seven enum values, wins
+#      verbatim. Any other value (unset/empty/unknown) silently falls through.
+#   2. Otherwise, the per-event auto-derivation table applies. Only one row
+#      auto-emits a value: Notification whose `message` contains `permission`
+#      (case-insensitive) → `approve-tool`. Every other event leaves `needs`
+#      empty (override-only).
+# Then the attention-state filter gates whether the field is attached at all
+# (see the JSON-build step below): the field is only included when `status` is
+# one of `approval`, `waiting`, `blocked`. Override has no power to bypass
+# this filter.
+needs=""
+needs_override="${CLAUDE_DISPLAY_NEEDS:-}"
+case "$needs_override" in
+  approve-tool|answer-question|provide-input|pick-option|confirm-destructive|resolve-conflict|review-diff)
+    needs="$needs_override"
+    ;;
+esac
+
+# Per-event auto-derivation table (ADR 0003). Only fires when the override
+# didn't yield a value above. Only one row auto-emits a value:
+#   Notification whose `message` contains `permission` (case-insensitive)
+#   → approve-tool
+# Reuses the same lower_message variable computed for the status mapping
+# above (ADR 0002), so a single substring check feeds both fields. Every
+# other event lacks a discriminator and remains override-only.
+if [ -z "$needs" ] && [ "$hook_event_name" = "Notification" ]; then
+  case "$lower_message" in
+    *permission*) needs="approve-tool" ;;
   esac
 fi
 
@@ -176,8 +215,17 @@ else
     if (out.length > 0) process.stdout.write(out);
   ')"
 
+  # `needs` is attached only when the resolved status is an attention-state
+  # value (`approval` | `waiting` | `blocked`) per ADR 0003. The override has
+  # no power to bypass this filter, so we apply it here in shell rather than
+  # forwarding raw `needs` and a status flag into the bun JSON-build step.
+  needs_for_payload=""
+  case "$status" in
+    approval|waiting|blocked) needs_for_payload="$needs" ;;
+  esac
+
   body="$(bun -e '
-    const [id, id_raw, status, repo, branch, session_label, desktop, event_at] = process.argv.slice(1);
+    const [id, id_raw, status, repo, branch, session_label, desktop, event_at, needs] = process.argv.slice(1);
     const payload = { id, id_raw, status, repo, branch, event_at: Number(event_at) };
     if (typeof session_label === "string" && session_label.length > 0) {
       payload.session_label = session_label;
@@ -185,8 +233,11 @@ else
     if (typeof desktop === "string" && desktop.length > 0) {
       payload.desktop = desktop;
     }
+    if (typeof needs === "string" && needs.length > 0) {
+      payload.needs = needs;
+    }
     process.stdout.write(JSON.stringify(payload));
-  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at")"
+  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at" "$needs_for_payload")"
 fi
 
 curl --silent --show-error \

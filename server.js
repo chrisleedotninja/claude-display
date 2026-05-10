@@ -27,6 +27,24 @@ const ALLOWED_STATUSES = Object.freeze(
   ]),
 );
 
+// The seven allowed `needs` values. Wire enum settled in parent spec [006]
+// and ADR sibling [031]. Anything outside this set (wrong type, empty
+// string, unknown value) is dropped silently at ingest — the record stores
+// no `needs` key in that case rather than 4xx-rejecting the whole event,
+// so a hook that sends a typo never blocks the rest of the payload from
+// updating the card. This is the *opposite* of `parent_id` validation.
+const ALLOWED_NEEDS = Object.freeze(
+  new Set([
+    "approve-tool",
+    "answer-question",
+    "provide-input",
+    "pick-option",
+    "confirm-destructive",
+    "resolve-conflict",
+    "review-diff",
+  ]),
+);
+
 // Static paths the server serves. Enumerated explicitly — no directory
 // traversal: any GET path under /vendor/ outside this map returns 404.
 const STATIC_FILES = {
@@ -37,6 +55,7 @@ const STATIC_FILES = {
   "/status-tokens.js": "status-tokens.js",
   "/status-tones.js": "status-tones.js",
   "/tweaks-persistence.js": "tweaks-persistence.js",
+  "/needs-tokens.js": "needs-tokens.js",
   "/vendor/preact.module.js": "vendor/preact.module.js",
   "/vendor/htm.module.js": "vendor/htm.module.js",
 };
@@ -202,6 +221,16 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
           payload.event_at > 0
         ) {
           record.event_at = payload.event_at;
+        }
+        // Optional `needs`: drop silently on any invalid value (wrong type,
+        // empty string, value outside the frozen allow-list). The record
+        // simply has no `needs` key in that case — mirrors the
+        // repo/branch/desktop/event_at conditional-assign pattern above.
+        if (
+          typeof payload.needs === "string" &&
+          ALLOWED_NEEDS.has(payload.needs)
+        ) {
+          record.needs = payload.needs;
         }
         state.set(payload.id, record);
 

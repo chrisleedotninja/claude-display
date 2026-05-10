@@ -224,3 +224,75 @@ body {
   color: var(--bg);
   border-color: var(--accent);
 }
+
+/* "Needs from you" tag (chore [038]). Rendered only on attention-state cards
+ * whose record carries a recognized `needs` wire-enum value (one of the seven
+ * keys in needs-tokens.js). The base rule provides shared layout/typography;
+ * each per-category attribute selector below applies a visually distinct
+ * accent so the seven categories are unambiguously different at a glance,
+ * satisfying AC2. Per-category icons are single Unicode glyphs supplied by
+ * NEEDS_TOKENS[key].icon — no webfont/icon-font dependency, matching
+ * docs/decisions/0001-heartbeat-stack.md. */
+.card-needs-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.card-needs-tag-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.card-needs-tag-label {
+  white-space: nowrap;
+}
+
+.card-needs-tag[data-need="approve-tool"] {
+  color: #9ece6a;
+  border-color: #9ece6a;
+  background: rgba(158, 206, 106, 0.08);
+}
+
+.card-needs-tag[data-need="answer-question"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(122, 162, 247, 0.1);
+}
+
+.card-needs-tag[data-need="provide-input"] {
+  color: #bb9af7;
+  border-color: #bb9af7;
+  background: rgba(187, 154, 247, 0.08);
+}
+
+.card-needs-tag[data-need="pick-option"] {
+  color: #7dcfff;
+  border-color: #7dcfff;
+  background: rgba(125, 207, 255, 0.08);
+}
+
+.card-needs-tag[data-need="confirm-destructive"] {
+  color: #f7768e;
+  border-color: #f7768e;
+  background: rgba(247, 118, 142, 0.1);
+  font-weight: 600;
+}
+
+.card-needs-tag[data-need="resolve-conflict"] {
+  color: #ff9e64;
+  border-color: #ff9e64;
+  background: rgba(255, 158, 100, 0.08);
+}
+
+.card-needs-tag[data-need="review-diff"] {
+  color: #e0af68;
+  border-color: #e0af68;
+  background: rgba(224, 175, 104, 0.08);
+}
