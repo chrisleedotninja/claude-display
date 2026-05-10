@@ -159,8 +159,14 @@ describe("hook/needs-walkthrough.sh driver script", () => {
     // The walkthrough must route through the production hook (ADR 0003 +
     // chore [034] allow-list). A direct curl POST to /events would bypass
     // both the hook's authoring-scheme path and the server's allow-list.
+    // Strip `#` comment lines first so commentary describing the rule does
+    // not get flagged as a violation of the rule.
+    const codeOnly = script
+      .split("\n")
+      .filter((line) => !/^\s*#/.test(line))
+      .join("\n");
     expect(
-      /curl[^\n]*\/events/.test(script),
+      /curl[^\n]*\/events/.test(codeOnly),
       "expected driver NOT to curl /events directly — route through hook/heartbeat.sh",
     ).toBe(false);
   });
