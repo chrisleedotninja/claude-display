@@ -164,3 +164,36 @@ describe("CLAUDE_DISPLAY_STATUS fall-through", () => {
     expect(records[0].status).toBe("working");
   });
 });
+
+describe("SessionEnd is unaffected by the override", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("a valid override does not turn SessionEnd into a POST", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%50",
+      CLAUDE_DISPLAY_URL: baseUrl,
+      CLAUDE_DISPLAY_STATUS: "tests",
+    };
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({ cwd: "/end-o", hook_event_name: "SessionEnd" }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toEqual([]);
+  });
+});
