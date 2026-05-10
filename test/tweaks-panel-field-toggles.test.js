@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { toggleVisibleField, stripHiddenFields } from "../app.js";
+import { createServer } from "../server.js";
 
 describe("toggleVisibleField pure helper (Step 1)", () => {
   it("returns a Set with the toggled field removed when previously present", () => {
@@ -146,6 +147,39 @@ describe("stripHiddenFields pure helper (Step 2)", () => {
     expect(out).not.toBe(cards);
     for (let i = 0; i < out.length; i++) {
       expect(out[i]).not.toBe(cards[i]);
+    }
+  });
+});
+
+describe("served /app.js initialises visibleFields to the full five-field set (Step 3)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js declares `let visibleFields` and initialises it with all five field names", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Locate the substring spanning a `let visibleFields` declaration
+    // through the next `;` and verify it contains each of the five
+    // quoted field-name strings.
+    const declRe = /let\s+visibleFields\b[^;]*;/;
+    const m = body.match(declRe);
+    expect(m).not.toBeNull();
+    const decl = m[0];
+    // Must be a `new Set([...])` construction whose array literal includes
+    // each of the five field names.
+    expect(/new\s+Set\s*\(\s*\[/.test(decl)).toBe(true);
+    for (const field of ["repo", "branch", "session", "desktop", "elapsed"]) {
+      // Tolerant of single or double quotes.
+      const fieldRe = new RegExp(`["']${field}["']`);
+      expect(fieldRe.test(decl)).toBe(true);
     }
   });
 });
