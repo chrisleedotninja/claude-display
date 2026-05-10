@@ -90,3 +90,77 @@ describe("valid CLAUDE_DISPLAY_STATUS wins over the static map", () => {
     expect(records[0].status).toBe("tests");
   });
 });
+
+describe("CLAUDE_DISPLAY_STATUS fall-through", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("invalid override (unknown enum string) falls through to auto-derivation", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%41",
+      CLAUDE_DISPLAY_URL: baseUrl,
+      CLAUDE_DISPLAY_STATUS: "lolwut",
+    };
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({ cwd: "/ft-invalid", hook_event_name: "PreToolUse" }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe("working");
+  });
+
+  it("empty override falls through to auto-derivation", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%42",
+      CLAUDE_DISPLAY_URL: baseUrl,
+      CLAUDE_DISPLAY_STATUS: "",
+    };
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({ cwd: "/ft-empty", hook_event_name: "PreToolUse" }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe("working");
+  });
+
+  it("unset override falls through to auto-derivation", async () => {
+    const env = {
+      PATH: process.env.PATH,
+      HOSTNAME: "hostA",
+      TMUX_PANE: "%43",
+      CLAUDE_DISPLAY_URL: baseUrl,
+      // CLAUDE_DISPLAY_STATUS intentionally absent.
+    };
+    const { exitCode, stderr } = await runHook({
+      env,
+      stdin: JSON.stringify({ cwd: "/ft-unset", hook_event_name: "PreToolUse" }),
+    });
+    expect(exitCode, `stderr: ${stderr}`).toBe(0);
+
+    const stateRes = await fetch(`${baseUrl}/api/state`);
+    const records = await stateRes.json();
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe("working");
+  });
+});
