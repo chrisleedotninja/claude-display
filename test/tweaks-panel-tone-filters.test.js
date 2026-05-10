@@ -82,3 +82,31 @@ describe("served /app.js initialises activeTones from TONE_GROUPS (Step 2)", () 
     expect(initRe.test(body)).toBe(true);
   });
 });
+
+describe("server static route /status-tones.js (Step 3)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("GET /status-tones.js returns 200 with the tone-module source text", async () => {
+    const res = await fetch(`${baseUrl}/status-tones.js`);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body.length).toBeGreaterThan(0);
+    expect(body.includes("TONE_GROUPS")).toBe(true);
+    expect(body.includes("filterCardsByTones")).toBe(true);
+  });
+
+  it("preserves the 404 fallback for unrelated unknown static paths", async () => {
+    const res = await fetch(`${baseUrl}/not-a-real-path.js`);
+    expect(res.status).toBe(404);
+  });
+});
