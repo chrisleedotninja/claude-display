@@ -363,3 +363,74 @@ describe("server-state isolation: filter wiring stays client-side (Step 7, AC5)"
     expect(inner.includes("filterCardsByTones")).toBe(false);
   });
 });
+
+describe("served /styles.css filter-control rules source palette vars and add no new hex (Step 8)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Collect every `<selector list> { ... }` block whose selector list
+  // mentions the given class name. Returns the inner declaration-block
+  // strings. Mirrors the helper in test/tweaks-panel-open-close.test.js.
+  function blocksFor(css, className) {
+    const blocks = [];
+    const re = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = re.exec(css)) !== null) {
+      const sel = m[1].trim();
+      if (sel.startsWith("@")) continue;
+      if (sel.includes(`.${className}`)) blocks.push(m[2]);
+    }
+    return blocks;
+  }
+
+  it("the .tweaks-tone-filter selector appears with at least one rule block", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const blocks = blocksFor(css, "tweaks-tone-filter");
+    expect(blocks.length).toBeGreaterThan(0);
+  });
+
+  it("the .tweaks-tone-filter.is-on on-state appears in at least one selector list", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    // Look for the selector substring `.tweaks-tone-filter.is-on` (or
+    // `.tweaks-tone-filter` paired with `&.is-on` inside its body for a
+    // nested form). Either presence is acceptable per the chore plan.
+    const flatRe = /\.tweaks-tone-filter\s*\.is-on\b/;
+    const flatExists = flatRe.test(css);
+    // Nested form: a .tweaks-tone-filter block whose declarations contain
+    // `&.is-on` somewhere inside.
+    let nestedExists = false;
+    for (const block of blocksFor(css, "tweaks-tone-filter")) {
+      if (/&\.is-on\b/.test(block)) {
+        nestedExists = true;
+        break;
+      }
+    }
+    expect(flatExists || nestedExists).toBe(true);
+  });
+
+  it("every declaration block for .tweaks-tone-filter selectors uses at least one var(--…) reference", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const blocks = blocksFor(css, "tweaks-tone-filter");
+    expect(blocks.length).toBeGreaterThan(0);
+    for (const block of blocks) {
+      expect(/var\(\s*--[\w-]+\s*\)/.test(block)).toBe(true);
+    }
+  });
+
+  it("no #xxxxxx hex literal appears inside the .tweaks-tone-filter declaration blocks", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const blocks = blocksFor(css, "tweaks-tone-filter");
+    for (const block of blocks) {
+      expect(/#[0-9a-fA-F]{3,8}\b/.test(block)).toBe(false);
+    }
+  });
+});
