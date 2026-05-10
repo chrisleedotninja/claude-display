@@ -110,3 +110,53 @@ describe("server static route /status-tones.js (Step 3)", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("served /app.js renders one filter control per tone group inside the panel body (Step 4)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js mentions the tweaks-tone-filter class string", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("tweaks-tone-filter")).toBe(true);
+  });
+
+  it("served /app.js mentions the is-on on-state modifier string", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("is-on")).toBe(true);
+  });
+
+  it("renders all four tone-name labels inside the panel-body span", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Walk forward from the panel-body class to the surface template's
+    // closing backtick — the same surfaceIdx → closeIdx walk used in
+    // test/tweaks-panel-open-close.test.js Step 4.
+    const surfaceIdx = body.indexOf("tweaks-panel-surface");
+    expect(surfaceIdx).toBeGreaterThan(-1);
+    const bodyIdx = body.indexOf("tweaks-panel-body", surfaceIdx);
+    expect(bodyIdx).toBeGreaterThan(surfaceIdx);
+    const closeIdx = body.indexOf("`", surfaceIdx);
+    expect(closeIdx).toBeGreaterThan(bodyIdx);
+    const span = body.slice(bodyIdx, closeIdx);
+    for (const tone of ["attention", "active", "success", "neutral"]) {
+      expect(span.includes(tone)).toBe(true);
+    }
+  });
+
+  it("wires the controls with onClick (or onclick) inside the surface span", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const surfaceIdx = body.indexOf("tweaks-panel-surface");
+    const closeIdx = body.indexOf("`", surfaceIdx);
+    const span = body.slice(surfaceIdx, closeIdx);
+    const hasClickHandler = /\bonClick\b/.test(span) || /\bonclick\b/.test(span);
+    expect(hasClickHandler).toBe(true);
+  });
+});
