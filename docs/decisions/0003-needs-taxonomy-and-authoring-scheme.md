@@ -29,3 +29,13 @@ Three candidate schemes were considered:
 3. **Hybrid.** Auto-derive a default `needs` value from the hook stdin where a discriminator exists, and accept an environment-variable override that wins when set to a valid enum value.
 
 **Chosen: hybrid.** This mirrors the precedent set by `docs/decisions/0002-hook-status-mapping.md` for the `status` field, ships immediately (every category is reachable today via the override even where no auto-derivation discriminator exists), and leaves a clean upgrade path for richer auto-classifiers in later slices without a re-decision.
+
+## Override mechanism — `CLAUDE_DISPLAY_NEEDS`
+
+The override is a single environment variable named **`CLAUDE_DISPLAY_NEEDS`**, validated against the seven-value `needs` enum locked above. It parallels `CLAUDE_DISPLAY_STATUS` from `docs/decisions/0002-hook-status-mapping.md` in name, shape, and semantics; no other override channel (stdin payload field, signal file, config file, etc.) is in scope.
+
+Fall-through rules (parallel to the three rules in `0002-hook-status-mapping.md`):
+
+1. **Valid override wins, verbatim.** When `CLAUDE_DISPLAY_NEEDS` is set to exactly one of `approve-tool`, `answer-question`, `provide-input`, `pick-option`, `confirm-destructive`, `resolve-conflict`, or `review-diff`, the hook emits that value as-is on the `needs` field, regardless of which event triggered the emission. The check is exact string match against the seven-value enum; case must match (lowercase).
+2. **Unset, empty, or invalid → fall through to auto-derivation.** When `CLAUDE_DISPLAY_NEEDS` is unset, set to the empty string, or set to any string outside the seven-value enum, the hook ignores it and falls through to the per-event auto-derivation table below. **No error is raised**; the variable is treated as if not set. This matches the silent-fall-through behavior locked for `CLAUDE_DISPLAY_STATUS`.
+3. **Status filter still applies.** Even a valid `CLAUDE_DISPLAY_NEEDS` value does not cause the hook to attach a `needs` field on a non-attention-state event; see "Status interaction" below. The override has no power to bypass that filter.
