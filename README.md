@@ -99,4 +99,12 @@ env CLAUDE_DISPLAY_STATUS=tests claude
 
 A valid override wins verbatim over the auto-derivation; an unset, empty, or invalid value silently falls through to auto-derivation. `SessionEnd` never POSTs regardless of the override.
 
+The hook also tags attention-state events with a `needs` category drawn from the seven-value taxonomy locked in [`docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md`](docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md): `approve-tool`, `answer-question`, `provide-input`, `pick-option`, `confirm-destructive`, `resolve-conflict`, `review-diff`. The hook auto-derives `approve-tool` from a `Notification` whose message contains "permission" (case-insensitive); every other category is reachable explicitly via `CLAUDE_DISPLAY_NEEDS`:
+
+```
+env CLAUDE_DISPLAY_NEEDS=review-diff CLAUDE_DISPLAY_STATUS=blocked claude
+```
+
+A valid `CLAUDE_DISPLAY_NEEDS` wins verbatim over the auto-derivation; an unset, empty, or invalid value silently falls through. The `needs` field is attached only on attention-state events — events whose resolved status is one of `approval`, `waiting`, or `blocked`. On any other status (`working`, `tests`, `reviewing`, `success`, `idle`) the hook emits no `needs` field, even with a valid `CLAUDE_DISPLAY_NEEDS` set.
+
 If the server is not running, the hook exits cleanly within ~1s and never blocks or errors the session.
