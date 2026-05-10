@@ -391,6 +391,58 @@ export function HeaderStrip({ now }) {
   `;
 }
 
+// Pure helper: compute five stat counts from the filtered cards array.
+// Returns { awaiting, blocked, active, done, instances }.
+//   awaiting  = count of cards with status "waiting" or "approval"
+//   blocked   = count of cards with status "blocked"
+//   active    = count of cards with status "working", "tests", or "reviewing"
+//   done      = count of cards with status "success"
+//   instances = cards.length (always non-negative)
+// All counts are non-negative integers; an empty array returns all zeros.
+// See chore [049].
+export function statsFromCards(cards) {
+  let awaiting = 0, blocked = 0, active = 0, done = 0;
+  for (const card of cards) {
+    const s = card.status;
+    if (s === "waiting" || s === "approval") awaiting++;
+    else if (s === "blocked") blocked++;
+    else if (s === "working" || s === "tests" || s === "reviewing") active++;
+    else if (s === "success") done++;
+  }
+  return { awaiting, blocked, active, done, instances: cards.length };
+}
+
+// Preact functional component: renders the stats strip with five stat cells.
+// Accepts a `cards` prop (filtered cards array) and derives counts via
+// `statsFromCards`. See chore [049].
+export function StatsStrip({ cards }) {
+  const { awaiting, blocked, active, done, instances } = statsFromCards(cards || []);
+  return html`
+    <div class="ms-board">
+      <div class="ms-stat-cell">
+        <span class="ms-stat-label">Awaiting</span>
+        <span class="ms-stat-value" style="color: var(--tn-yellow)">${awaiting}</span>
+      </div>
+      <div class="ms-stat-cell">
+        <span class="ms-stat-label">Blocked</span>
+        <span class="ms-stat-value" style="color: var(--tn-red)">${blocked}</span>
+      </div>
+      <div class="ms-stat-cell">
+        <span class="ms-stat-label">Active</span>
+        <span class="ms-stat-value" style="color: var(--tn-blue)">${active}</span>
+      </div>
+      <div class="ms-stat-cell">
+        <span class="ms-stat-label">Done</span>
+        <span class="ms-stat-value" style="color: var(--tn-green)">${done}</span>
+      </div>
+      <div class="ms-stat-cell">
+        <span class="ms-stat-label">Instances</span>
+        <span class="ms-stat-value">${instances}</span>
+      </div>
+    </div>
+  `;
+}
+
 // Pure helper: named entry point for the reconnect path's
 // "replace everything from server state" semantics. Returns the same
 // view-model shape as `cardsFromState`. The reconnect flow re-fetches
