@@ -118,6 +118,22 @@ export function toggleActiveTone(prev, tone) {
   return next;
 }
 
+// Pure helper: return a fresh Set with `field` toggled — added if absent,
+// removed if present. Never mutates the input Set; always allocates a new
+// Set instance. Mirrors `toggleActiveTone`'s shape. Unrecognized field
+// strings are toggled in/out as opaque strings without throwing — the
+// caller is responsible for the canonical five-field vocabulary
+// `{"repo", "branch", "session", "desktop", "elapsed"}`. See chore [037].
+export function toggleVisibleField(prev, field) {
+  const next = new Set(prev);
+  if (next.has(field)) {
+    next.delete(field);
+  } else {
+    next.add(field);
+  }
+  return next;
+}
+
 // Pure upsert: given the previous cards array and one incoming record,
 // return a new cards array. If the record's id already appears in cards,
 // the matching entry is replaced in place (same index, same length); if
