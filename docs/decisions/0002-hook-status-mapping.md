@@ -15,3 +15,18 @@ Rationale (summarized from the locked decision in `spec.md`):
 - A pure auto-from-event-name scheme leaves four of the eight dashboard statuses unreachable, which would break the parent's validation walk for those statuses.
 - A pure explicit-signal scheme has no real-world signal source in v1 — Claude Code itself does not populate any such field on hook stdin.
 - The hybrid approach is the only path that ships immediately, exercises the parent's validation walk end to end, and leaves a clean upgrade path for richer auto-classifiers later.
+
+## Override mechanism — `CLAUDE_DISPLAY_STATUS`
+
+The override is a single environment variable named **`CLAUDE_DISPLAY_STATUS`**, validated against the eight-value dashboard-status enum:
+
+- `approval`
+- `waiting`
+- `blocked`
+- `working`
+- `tests`
+- `reviewing`
+- `success`
+- `idle`
+
+Implementations of [021] read `CLAUDE_DISPLAY_STATUS` from the hook script's environment and validate it against the enum above. No other override channel (stdin payload field, signal file, etc.) is in scope.
