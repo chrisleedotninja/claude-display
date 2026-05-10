@@ -101,6 +101,22 @@ export function nextPanelOpen(prev) {
   return !prevBool;
 }
 
+// Pure helper: return a fresh Set with `tone` toggled — added if absent,
+// removed if present. Never mutates the input Set; always allocates a new
+// Set instance (mirrors the `applyEventToCards` "return a new array"
+// discipline). Unrecognized tone strings are toggled in/out as opaque
+// strings without throwing — the caller is responsible for the canonical
+// tone vocabulary (see TONE_GROUPS in status-tones.js, chore [032]).
+export function toggleActiveTone(prev, tone) {
+  const next = new Set(prev);
+  if (next.has(tone)) {
+    next.delete(tone);
+  } else {
+    next.add(tone);
+  }
+  return next;
+}
+
 // Pure upsert: given the previous cards array and one incoming record,
 // return a new cards array. If the record's id already appears in cards,
 // the matching entry is replaced in place (same index, same length); if
