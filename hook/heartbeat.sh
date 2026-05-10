@@ -3,7 +3,9 @@
 #
 # Reads Claude Code's hook stdin JSON payload, computes a stable per-session id
 # from HOSTNAME + (TMUX_PANE | TTY | PPID-$PPID) + cwd, and POSTs an event to
-# the local claude-display server. See docs/decisions/0001-heartbeat-stack.md.
+# the local claude-display server. See docs/decisions/0001-heartbeat-stack.md
+# for the transport/identity contract and docs/decisions/0002-hook-status-mapping.md
+# for the event-name → dashboard-status mapping plus CLAUDE_DISPLAY_STATUS override.
 #
 # When the stdin JSON's `parent_tool_use_id` field is non-null, the hook is
 # firing inside a Task-tool subagent (see docs/decisions/0002). The shell-
@@ -18,11 +20,12 @@ set -u
 
 stdin_payload="$(cat)"
 
-# Extract `cwd` and `parent_tool_use_id` from the hook's stdin JSON. Bun is
-# the locked runtime dependency for this project, so we use `bun -e` rather
-# than taking on `jq`. Each field is read by a separate invocation — combining
-# fields into one capture is fragile because command substitution strips
-# trailing newlines, which collapses an "absent second field" case.
+# Extract `cwd`, `parent_tool_use_id`, `hook_event_name`, and `message` from
+# the hook's stdin JSON. Bun is the locked runtime dependency for this project,
+# so we use `bun -e` rather than taking on `jq`. Each field is read by a
+# separate invocation — combining fields into one capture is fragile because
+# command substitution strips trailing newlines, which collapses an "absent
+# second field" case (and `message` may legitimately contain newlines).
 extract_field() {
   local field="$1"
   printf '%s' "$stdin_payload" | bun -e '
@@ -39,6 +42,52 @@ extract_field() {
 cwd="$(extract_field cwd)"
 parent_tool_use_id="$(extract_field parent_tool_use_id)"
 hook_event_name="$(extract_field hook_event_name)"
+message="$(extract_field message)"
+
+# Derive the dashboard status (ADR 0002-hook-status-mapping). Order:
+#   1. CLAUDE_DISPLAY_STATUS, if set to one of the eight enum values, wins
+#      verbatim — except for SessionEnd, which never POSTs (rule 3).
+#   2. Otherwise the static map below applies; events not in the map produce
+#      no POST and exit 0.
+# This `status` is then used as the *top-level* status downstream; the
+# subagent branch below special-cases SubagentStop (`status` is already
+# "idle" via the static map) but otherwise emits the same derived status.
+status=""
+override="${CLAUDE_DISPLAY_STATUS:-}"
+case "$override" in
+  approval|waiting|blocked|working|tests|reviewing|success|idle)
+    status="$override"
+    ;;
+esac
+
+# SessionEnd never POSTs, even with a valid override.
+if [ "$hook_event_name" = "SessionEnd" ]; then
+  exit 0
+fi
+
+# Static map fall-through when no valid override is set.
+if [ -z "$status" ]; then
+  case "$hook_event_name" in
+    SessionStart|Stop|SubagentStop)
+      status="idle"
+      ;;
+    UserPromptSubmit|PreToolUse|PostToolUse|PreCompact)
+      status="working"
+      ;;
+    Notification)
+      # Case-insensitive substring check for "permission".
+      lower_message="$(printf '%s' "$message" | tr '[:upper:]' '[:lower:]')"
+      case "$lower_message" in
+        *permission*) status="approval" ;;
+        *) status="waiting" ;;
+      esac
+      ;;
+    *)
+      # Event not in the locked map and no override → no POST.
+      exit 0
+      ;;
+  esac
+fi
 
 pane_or_tty="${TMUX_PANE:-${TTY:-PPID-$PPID}}"
 shell_id_raw="${HOSTNAME}:${pane_or_tty}:${cwd}"
@@ -83,13 +132,18 @@ if [ -n "$parent_tool_use_id" ]; then
   parent_id="$shell_id"
   id_raw="${parent_id}:${parent_tool_use_id}"
   id="$(printf '%s' "$id_raw" | shasum -a 256 | cut -c1-8)"
-  # SubagentStop hook event signals the subagent has finished — emit the
-  # end-flavored payload (status: "idle") so the server removes the
-  # subagent record. All other subagent fires are activity events.
+  # SubagentStop hook event signals the subagent has finished — always emit
+  # the end-flavored payload (status: "idle") so the server removes the
+  # subagent record (ADR 0002 subagent-removal contract from chore [030];
+  # not subject to the CLAUDE_DISPLAY_STATUS override). All other subagent
+  # fires use the same derived status as a top-level fire (ADR 0002 hook
+  # status mapping from chore [021]; per the static map this is typically
+  # "working" for PreToolUse/PostToolUse/UserPromptSubmit/PreCompact, with
+  # override fall-through honored).
   if [ "$hook_event_name" = "SubagentStop" ]; then
     sub_status="idle"
   else
-    sub_status="active"
+    sub_status="$status"
   fi
   body="$(bun -e '
     const [id, id_raw, parent_id, status] = process.argv.slice(1);
@@ -132,7 +186,7 @@ else
       payload.desktop = desktop;
     }
     process.stdout.write(JSON.stringify(payload));
-  ' "$id" "$id_raw" "active" "$repo" "$branch" "$session_label" "$desktop" "$event_at")"
+  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at")"
 fi
 
 curl --silent --show-error \

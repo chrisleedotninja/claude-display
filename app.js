@@ -4,6 +4,7 @@
 
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
+import { tokensForStatus, isAttentionStatus } from "./status-tokens.js";
 
 const html = htm.bind(h);
 
@@ -33,6 +34,10 @@ export function formatElapsed(ms) {
 // wire, is propagated as a minimal `[{id, status}]` view-model array per
 // ADR 0002.
 //
+// `color`, `icon`, and `label` come from `tokensForStatus` (status-tokens.js,
+// chore [018]) — the eight-status taxonomy is the single source of truth and
+// any non-allow-list value falls back to the `idle` triple.
+//
 // Order: most-recent-first by `last_event_at` (descending), with `id`
 // ascending as the stable tiebreaker. Records whose `last_event_at` is
 // missing, null, or 0 sort after every record with a positive timestamp;
@@ -40,9 +45,13 @@ export function formatElapsed(ms) {
 export function cardsFromState(records, now = Date.now()) {
   return records
     .map((r) => {
+      const token = tokensForStatus(r.status);
       const card = {
         id: r.id,
         status: r.status,
+        color: token.color,
+        icon: token.icon,
+        label: token.label,
         repo: typeof r.repo === "string" ? r.repo : "",
         branch: typeof r.branch === "string" ? r.branch : "",
         last_event_at: r.last_event_at ? r.last_event_at : null,
@@ -105,10 +114,11 @@ function SubagentCard({ id, status }) {
   `;
 }
 
-function Card({ id, status, repo, branch, session_label, desktop, elapsed, subagents }) {
+function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, elapsed, subagents }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
+  const className = isAttentionStatus(status) ? "card is-attention" : "card";
   const nested =
     subagents && subagents.length > 0
       ? html`
@@ -118,14 +128,19 @@ function Card({ id, status, repo, branch, session_label, desktop, elapsed, subag
         `
       : null;
   return html`
-    <div class="card" style=${"view-transition-name: card-" + id}>
+    <div
+      class=${className}
+      data-status=${status}
+      style=${`--card-status-color: ${color}; view-transition-name: card-${id}`}
+    >
       <div class="card-id">${id}</div>
       ${repo ? html`<div class="card-repo">${repo}</div>` : null}
       ${branch ? html`<div class="card-branch">${branch}</div>` : null}
       ${hasLabel ? html`<div class="card-session-label">${session_label}</div>` : null}
       ${hasDesktop ? html`<div class="card-desktop">${desktop}</div>` : null}
       ${hasElapsed ? html`<div class="card-elapsed">${elapsed}</div>` : null}
-      <div class="card-status">${status}</div>
+      <span class="card-status-icon">${icon}</span>
+      <div class="card-status">${label}</div>
       ${nested}
     </div>
   `;
@@ -143,6 +158,9 @@ function Dashboard({ cards }) {
             key=${c.id}
             id=${c.id}
             status=${c.status}
+            color=${c.color}
+            icon=${c.icon}
+            label=${c.label}
             repo=${c.repo}
             branch=${c.branch}
             session_label=${c.session_label}

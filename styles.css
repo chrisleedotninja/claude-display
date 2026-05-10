@@ -76,8 +76,14 @@ body {
 }
 
 .card-status {
-  color: var(--accent);
+  color: var(--card-status-color, var(--muted));
   font-weight: 500;
+}
+
+.card-status-icon {
+  color: var(--card-status-color, var(--muted));
+  font-size: 16px;
+  line-height: 1;
 }
 
 .empty-state {
@@ -87,7 +93,7 @@ body {
 }
 
 /* Nested subagent cards. Mission Board treatment: indented and visually
- * tied to the parent via a left-rail connector, with a slightly reduced
+ * tied to the parent via a left-edge connector, with a slightly reduced
  * silhouette so nesting is unambiguous (see parent 001 spec lines 17 + 57). */
 .subagents {
   display: flex;
@@ -104,4 +110,33 @@ body {
   padding: 0.6rem 0.9rem;
   font-size: 13px;
   border-left: 3px solid var(--accent);
+}
+
+/* Attention-state visual loudness (chore [019]). Cards whose status is in the
+ * attention set (approval / waiting / blocked) carry the .is-attention class
+ * from app.js. The colored bar along the card's left edge uses the same
+ * per-status color the [018] slice already exposes via --card-status-color.
+ * All such treatment is scoped under .card.is-attention so non-attention cards
+ * never inherit either the bar or the pulse animation.
+ */
+.card.is-attention {
+  /* attention-rail along the left edge, in the per-status color */
+  border-left: 4px solid var(--card-status-color);
+  padding-left: calc(1.25rem - 3px);
+  animation: attention-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes attention-pulse {
+  0%, 100% {
+    box-shadow: -1px 0 0 0 var(--card-status-color);
+  }
+  50% {
+    box-shadow: -6px 0 12px -2px var(--card-status-color);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.is-attention {
+    animation: none;
+  }
 }
