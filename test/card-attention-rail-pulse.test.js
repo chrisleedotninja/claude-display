@@ -38,3 +38,43 @@ describe("ATTENTION_STATUSES set and isAttentionStatus predicate", () => {
     expect(isAttentionStatus(42)).toBe(false);
   });
 });
+
+describe("served /app.js Card adds is-attention class only for attention statuses", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js imports isAttentionStatus from ./status-tokens.js", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(
+      body.includes('from "./status-tokens.js"') ||
+        body.includes("from './status-tokens.js'"),
+    ).toBe(true);
+    expect(body.includes("isAttentionStatus")).toBe(true);
+  });
+
+  it("served /app.js mentions the is-attention class string", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("is-attention")).toBe(true);
+  });
+
+  it("served /app.js does not hard-code the three attention status keys as a literal list in markup", async () => {
+    // Belt-and-braces: the conditional class should reuse isAttentionStatus,
+    // not restate the three status keys as a sibling literal in the JSX.
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Reject any literal that lists all three attention keys consecutively
+    // separated by JSON-array syntax in the Card source.
+    expect(
+      /\["approval"\s*,\s*"waiting"\s*,\s*"blocked"\]/.test(body) ||
+        /\['approval'\s*,\s*'waiting'\s*,\s*'blocked'\]/.test(body),
+    ).toBe(false);
+  });
+});
