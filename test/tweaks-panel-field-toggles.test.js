@@ -412,3 +412,69 @@ describe("server-state isolation: field-toggle wiring stays client-side (Step 8,
     expect(serverSrc.includes("tweaks-field-toggle")).toBe(false);
   });
 });
+
+describe("served /styles.css field-toggle rules source palette vars and add no new hex (Step 9)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Collect every `<selector list> { ... }` block whose selector list
+  // mentions the given class name. Returns the inner declaration-block
+  // strings.
+  function blocksFor(css, className) {
+    const blocks = [];
+    const re = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = re.exec(css)) !== null) {
+      const sel = m[1].trim();
+      if (sel.startsWith("@")) continue;
+      if (sel.includes(`.${className}`)) blocks.push(m[2]);
+    }
+    return blocks;
+  }
+
+  it("the .tweaks-field-toggle selector appears with at least one rule block", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const blocks = blocksFor(css, "tweaks-field-toggle");
+    expect(blocks.length).toBeGreaterThan(0);
+  });
+
+  it("the .tweaks-field-toggle.is-on on-state appears in at least one selector list", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const flatRe = /\.tweaks-field-toggle\s*\.is-on\b/;
+    const flatExists = flatRe.test(css);
+    let nestedExists = false;
+    for (const block of blocksFor(css, "tweaks-field-toggle")) {
+      if (/&\.is-on\b/.test(block)) {
+        nestedExists = true;
+        break;
+      }
+    }
+    expect(flatExists || nestedExists).toBe(true);
+  });
+
+  it("every declaration block for .tweaks-field-toggle selectors uses at least one var(--…) reference", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const blocks = blocksFor(css, "tweaks-field-toggle");
+    expect(blocks.length).toBeGreaterThan(0);
+    for (const block of blocks) {
+      expect(/var\(\s*--[\w-]+\s*\)/.test(block)).toBe(true);
+    }
+  });
+
+  it("no #xxxxxx hex literal appears inside the .tweaks-field-toggle declaration blocks", async () => {
+    const css = await (await fetch(`${baseUrl}/styles.css`)).text();
+    const blocks = blocksFor(css, "tweaks-field-toggle");
+    for (const block of blocks) {
+      expect(/#[0-9a-fA-F]{3,8}\b/.test(block)).toBe(false);
+    }
+  });
+});
