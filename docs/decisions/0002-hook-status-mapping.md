@@ -57,3 +57,10 @@ Rationale (summarized): emitting a status on every wired hook event — includin
 1. **Valid override wins, verbatim.** When `CLAUDE_DISPLAY_STATUS` is set to exactly one of `approval`, `waiting`, `blocked`, `working`, `tests`, `reviewing`, `success`, or `idle`, the hook emits that value as-is, regardless of the event name. The check is exact string match against the eight-value enum; case must match (lowercase).
 2. **Unset, empty, or invalid → fall through to auto-derivation.** When `CLAUDE_DISPLAY_STATUS` is unset, set to the empty string, or set to any string outside the enum, the hook ignores it and falls through to the static-map auto-derivation. No error is raised; the variable is simply treated as if not set.
 3. **`SessionEnd` is unaffected by the override.** No event is emitted for `SessionEnd` regardless of whether the override is set. The static map's no-emit rule wins; the override does not have the power to turn `SessionEnd` into a POST.
+
+## Statuses reachable per the locked scheme
+
+Under this scheme, the eight dashboard statuses partition into two groups:
+
+- **Auto-reachable in v1, no override needed:** `approval`, `waiting`, `working`, `idle`. These are produced by the static map's auto-derivation from event names alone — no `CLAUDE_DISPLAY_STATUS` setting required.
+- **Override-only in v1:** `tests`, `reviewing`, `success`, `blocked`. These are reachable today **only via the `CLAUDE_DISPLAY_STATUS` override**, e.g. `env CLAUDE_DISPLAY_STATUS=tests claude …` or per-command plumbing the user wires up. Adequate for the parent's validation walk and any per-operation tagging the user adds. Future slices may add automated triggers (e.g., recognizing `pytest`/`vitest`/`bun test` invocations in `PreToolUse` to emit `tests`), but those classifiers are out of scope for [020] and [021].
