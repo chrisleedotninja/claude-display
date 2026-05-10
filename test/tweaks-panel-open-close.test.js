@@ -134,3 +134,100 @@ describe("served /app.js panel surface renders a header identifying it as the Tw
     expect(span.includes("Tweaks")).toBe(true);
   });
 });
+
+describe("served /app.js panelOpen never gates cards or per-card fields (Step 5, AC3)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Brace-walking helper: given the source and the index of an opening `{`,
+  // return the substring between that brace and its matching `}`. Mirrors
+  // the technique used by `extractReducedMotionBody` in
+  // test/card-attention-rail-pulse.test.js.
+  function extractBalancedBlock(src, openBraceIdx) {
+    let depth = 1;
+    for (let i = openBraceIdx + 1; i < src.length; i++) {
+      const c = src[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) return src.slice(openBraceIdx + 1, i);
+      }
+    }
+    return null;
+  }
+
+  // Locate `function <name>(...)` and return the index of the `{` that opens
+  // the function body. Walks parens to handle default-arg expressions like
+  // `Date.now()` that contain their own `()`.
+  function findFunctionBodyOpenBrace(src, name) {
+    const sigRe = new RegExp(`\\bfunction\\s+${name}\\s*\\(`);
+    const m = src.match(sigRe);
+    if (!m) return -1;
+    let i = m.index + m[0].length;
+    let depth = 1;
+    while (i < src.length && depth > 0) {
+      const c = src[i];
+      if (c === "(") depth++;
+      else if (c === ")") depth--;
+      i++;
+    }
+    // Now `i` is just past the closing `)`. Skip whitespace to find `{`.
+    while (i < src.length && /\s/.test(src[i])) i++;
+    if (src[i] !== "{") return -1;
+    return i;
+  }
+
+  it("cardsFromState's function body does not mention panelOpen", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const openIdx = findFunctionBodyOpenBrace(body, "cardsFromState");
+    expect(openIdx).toBeGreaterThan(-1);
+    const inner = extractBalancedBlock(body, openIdx);
+    expect(inner).not.toBeNull();
+    expect(inner.includes("panelOpen")).toBe(false);
+  });
+
+  it("the Card component's definition body does not mention panelOpen", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const openIdx = findFunctionBodyOpenBrace(body, "Card");
+    expect(openIdx).toBeGreaterThan(-1);
+    const inner = extractBalancedBlock(body, openIdx);
+    expect(inner).not.toBeNull();
+    expect(inner.includes("panelOpen")).toBe(false);
+  });
+
+  it("the cards.map(...) iteration is not gated on panelOpen", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Locate the `cards.map(` call site inside Dashboard. The substring from
+    // that call site through its matching `)` must not mention panelOpen.
+    const mapIdx = body.indexOf("cards.map(");
+    expect(mapIdx).toBeGreaterThan(-1);
+    // Walk parens from the `(` after `cards.map`.
+    const openParen = mapIdx + "cards.map".length;
+    expect(body[openParen]).toBe("(");
+    let depth = 1;
+    let endIdx = -1;
+    for (let i = openParen + 1; i < body.length; i++) {
+      const c = body[i];
+      if (c === "(") depth++;
+      else if (c === ")") {
+        depth--;
+        if (depth === 0) {
+          endIdx = i;
+          break;
+        }
+      }
+    }
+    expect(endIdx).toBeGreaterThan(openParen);
+    const span = body.slice(openParen, endIdx + 1);
+    expect(span.includes("panelOpen")).toBe(false);
+  });
+});
