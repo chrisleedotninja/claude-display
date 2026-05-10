@@ -367,6 +367,30 @@ function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone,
   `;
 }
 
+// Pure helper: format a Unix timestamp in milliseconds as a zero-padded
+// "HH:MM" string using local time. Non-finite or negative inputs return
+// "--:--" (the caller expects "clock unavailable" semantics). See chore [049].
+export function formatClock(ms) {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) return "--:--";
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+// Preact functional component: renders the header strip with the dashboard
+// title on the left and a live HH:MM clock on the right.
+// Accepts a `now` prop (Unix timestamp ms) for the clock value.
+// See chore [049].
+export function HeaderStrip({ now }) {
+  return html`
+    <div class="ms-head">
+      <span class="ms-head-title">claude-display</span>
+      <span class="ms-head-clock">${formatClock(now)}</span>
+    </div>
+  `;
+}
+
 // Pure helper: named entry point for the reconnect path's
 // "replace everything from server state" semantics. Returns the same
 // view-model shape as `cardsFromState`. The reconnect flow re-fetches
