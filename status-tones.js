@@ -25,7 +25,13 @@ export const STATUS_TONES = Object.freeze({
 });
 
 // Pure resolver. Returns the tone-group string for any of the eight
-// allow-list statuses.
+// allow-list statuses; for anything else (undefined, null, empty string,
+// non-string, or unknown string) returns "neutral" — mirrors the tolerant
+// fallback shape of tokensForStatus in status-tokens.js, and lands on the
+// same group that owns "idle".
 export function toneForStatus(status) {
-  return STATUS_TONES[status];
+  if (typeof status === "string" && Object.hasOwn(STATUS_TONES, status)) {
+    return STATUS_TONES[status];
+  }
+  return "neutral";
 }
