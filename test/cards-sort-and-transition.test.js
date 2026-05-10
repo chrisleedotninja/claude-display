@@ -4,16 +4,20 @@ import { cardsFromState, withReorderTransition } from "../app.js";
 describe("cardsFromState — last_event_at field", () => {
   it("includes last_event_at on each view-model when the source record carries it", () => {
     const records = [{ id: "a", status: "working", last_event_at: 7 }];
-    expect(cardsFromState(records)).toEqual([
-      { id: "a", status: "working", last_event_at: 7 },
-    ]);
+    const cards = cardsFromState(records);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].id).toBe("a");
+    expect(cards[0].status).toBe("working");
+    expect(cards[0].last_event_at).toBe(7);
   });
 
   it("represents a missing last_event_at as null on the view-model", () => {
     const records = [{ id: "a", status: "working" }];
-    expect(cardsFromState(records)).toEqual([
-      { id: "a", status: "working", last_event_at: null },
-    ]);
+    const cards = cardsFromState(records);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].id).toBe("a");
+    expect(cards[0].status).toBe("working");
+    expect(cards[0].last_event_at).toBe(null);
   });
 });
 
