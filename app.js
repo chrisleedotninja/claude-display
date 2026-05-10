@@ -157,7 +157,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   `;
 }
 
-function Dashboard({ cards, panelOpen }) {
+function Dashboard({ cards, panelOpen, onTogglePanel }) {
   const cardsTree =
     cards.length === 0
       ? html`<div class="empty-state">No sessions yet.</div>`
@@ -185,13 +185,19 @@ function Dashboard({ cards, panelOpen }) {
   // Tweaks panel scaffolding (chore [033]). The panel-open state lives in
   // the dashboard's local UI state — see `mount()` below — and the surface
   // is conditional on `panelOpen` so the panel is absent from the markup
-  // when closed. Subsequent steps in this chore will add the toggle
-  // affordance, header, and body.
+  // when closed. Subsequent steps in this chore will add the header and body.
   const panelSurface = panelOpen
     ? html`<div class="tweaks-panel-surface"></div>`
     : null;
   return html`
     <div>
+      <button
+        type="button"
+        class="tweaks-panel-toggle"
+        onClick=${onTogglePanel}
+      >
+        Tweaks
+      </button>
       ${panelSurface}
       ${cardsTree}
     </div>
@@ -322,13 +328,21 @@ export async function mount(rootEl) {
   // a reorder-by-recency animates in place rather than full-page repainting
   // (chore [015]). In non-DOM environments (unit tests) `withReorderTransition`
   // falls back to a synchronous call.
+  const togglePanel = () => {
+    panelOpen = nextPanelOpen(panelOpen);
+    draw();
+  };
   const draw = () => {
     const cards = cardsFromState(records, Date.now());
     return withReorderTransition(
       typeof document !== "undefined" ? document : null,
       () =>
         render(
-          html`<${Dashboard} cards=${cards} panelOpen=${panelOpen} />`,
+          html`<${Dashboard}
+            cards=${cards}
+            panelOpen=${panelOpen}
+            onTogglePanel=${togglePanel}
+          />`,
           rootEl,
         ),
     );
