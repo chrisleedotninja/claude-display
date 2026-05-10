@@ -292,3 +292,40 @@ describe("served /app.js wraps filterCardsByTones with stripHiddenFields inside 
     expect(/filterCardsByTones\s*\(\s*cardsFromState\s*\(\s*records\b/.test(body)).toBe(true);
   });
 });
+
+describe("served /app.js toggle handler updates visibleFields via toggleVisibleField and calls draw() (Step 6)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("references the toggleVisibleField helper by name in the served body", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    expect(body.includes("toggleVisibleField")).toBe(true);
+  });
+
+  it("the toggle handler reassigns visibleFields via the helper and calls draw()", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // First occurrence is `export function toggleVisibleField`; the second
+    // is the use site. Sanity-check we found a use site beyond the
+    // definition.
+    const useIdx = body.indexOf("toggleVisibleField(", body.indexOf("toggleVisibleField") + 1);
+    expect(useIdx).toBeGreaterThan(-1);
+    // Take a window of ~400 chars around the use site and assert the
+    // structural conditions hold within the handler scope.
+    const windowStart = Math.max(0, useIdx - 200);
+    const windowEnd = Math.min(body.length, useIdx + 400);
+    const span = body.slice(windowStart, windowEnd);
+    // Both an assignment of visibleFields and a draw() call must appear in
+    // the same handler window.
+    expect(/visibleFields\s*=\s*toggleVisibleField\s*\(\s*visibleFields\b/.test(span)).toBe(true);
+    expect(/\bdraw\s*\(/.test(span)).toBe(true);
+  });
+});
