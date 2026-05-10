@@ -157,29 +157,43 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   `;
 }
 
-function Dashboard({ cards }) {
-  if (cards.length === 0) {
-    return html`<div class="empty-state">No sessions yet.</div>`;
-  }
+function Dashboard({ cards, panelOpen }) {
+  const cardsTree =
+    cards.length === 0
+      ? html`<div class="empty-state">No sessions yet.</div>`
+      : html`
+          <div class="cards">
+            ${cards.map(
+              (c) =>
+                html`<${Card}
+                  key=${c.id}
+                  id=${c.id}
+                  status=${c.status}
+                  color=${c.color}
+                  icon=${c.icon}
+                  label=${c.label}
+                  repo=${c.repo}
+                  branch=${c.branch}
+                  session_label=${c.session_label}
+                  desktop=${c.desktop}
+                  elapsed=${c.elapsed}
+                  subagents=${c.subagents}
+                />`,
+            )}
+          </div>
+        `;
+  // Tweaks panel scaffolding (chore [033]). The panel-open state lives in
+  // the dashboard's local UI state — see `mount()` below — and the surface
+  // is conditional on `panelOpen` so the panel is absent from the markup
+  // when closed. Subsequent steps in this chore will add the toggle
+  // affordance, header, and body.
+  const panelSurface = panelOpen
+    ? html`<div class="tweaks-panel-surface"></div>`
+    : null;
   return html`
-    <div class="cards">
-      ${cards.map(
-        (c) =>
-          html`<${Card}
-            key=${c.id}
-            id=${c.id}
-            status=${c.status}
-            color=${c.color}
-            icon=${c.icon}
-            label=${c.label}
-            repo=${c.repo}
-            branch=${c.branch}
-            session_label=${c.session_label}
-            desktop=${c.desktop}
-            elapsed=${c.elapsed}
-            subagents=${c.subagents}
-          />`,
-      )}
+    <div>
+      ${panelSurface}
+      ${cardsTree}
     </div>
   `;
 }
@@ -299,6 +313,11 @@ export function withReorderTransition(viewTransitions, renderFn) {
 
 export async function mount(rootEl) {
   let records = [];
+  // Tweaks panel local UI state (chore [033]). Closure-level boolean,
+  // toggled via `nextPanelOpen` and a `draw()` re-render — mirrors the
+  // existing `records` pattern because the vendored Preact ships without
+  // hooks. Defaults closed (`false`).
+  let panelOpen = false;
   // Wrap the render call through the View Transitions API when available so
   // a reorder-by-recency animates in place rather than full-page repainting
   // (chore [015]). In non-DOM environments (unit tests) `withReorderTransition`
@@ -307,7 +326,11 @@ export async function mount(rootEl) {
     const cards = cardsFromState(records, Date.now());
     return withReorderTransition(
       typeof document !== "undefined" ? document : null,
-      () => render(html`<${Dashboard} cards=${cards} />`, rootEl),
+      () =>
+        render(
+          html`<${Dashboard} cards=${cards} panelOpen=${panelOpen} />`,
+          rootEl,
+        ),
     );
   };
   const res = await fetch("/api/state");
