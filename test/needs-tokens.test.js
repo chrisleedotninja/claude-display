@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { NEEDS_TOKENS } from "../needs-tokens.js";
+import { NEEDS_TOKENS, tokensForNeed } from "../needs-tokens.js";
 
 const EXPECTED = {
   "approve-tool": { label: "Approve tool", icon: "✓" },
@@ -31,6 +31,14 @@ describe("NEEDS_TOKENS", () => {
   it("each entry is frozen", () => {
     for (const key of Object.keys(EXPECTED)) {
       expect(Object.isFrozen(NEEDS_TOKENS[key])).toBe(true);
+    }
+  });
+});
+
+describe("tokensForNeed", () => {
+  it("returns the same frozen entry identity for every wire-enum value", () => {
+    for (const key of Object.keys(EXPECTED)) {
+      expect(tokensForNeed(key)).toBe(NEEDS_TOKENS[key]);
     }
   });
 });
