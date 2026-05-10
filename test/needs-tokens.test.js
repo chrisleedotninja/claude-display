@@ -17,4 +17,10 @@ describe("NEEDS_TOKENS", () => {
       Object.keys(EXPECTED).sort(),
     );
   });
+
+  it("each entry equals the locked label/icon pair verbatim", () => {
+    for (const key of Object.keys(EXPECTED)) {
+      expect(NEEDS_TOKENS[key]).toEqual(EXPECTED[key]);
+    }
+  });
 });
