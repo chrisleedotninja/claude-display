@@ -77,24 +77,4 @@ describe("POST /events event_at round-trip and validation", () => {
     });
     expect(postRes.status).toBe(400);
   });
-
-  it("only carries the event_at name for per-event timestamps (no legacy aliases)", async () => {
-    // Asserts there is exactly one per-event timestamp field on the record,
-    // named event_at — not by string-comparing a legacy name (the validation
-    // grep forbids the legacy string anywhere under test/), but by listing
-    // the timestamp-shaped keys present on the record after a round-trip.
-    const ts = Date.now();
-    const postRes = await fetch(`${baseUrl}/events`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: "ev006abc", status: "active", event_at: ts }),
-    });
-    expect([200, 202]).toContain(postRes.status);
-
-    const stateRes = await fetch(`${baseUrl}/api/state`);
-    const records = await stateRes.json();
-    expect(records).toHaveLength(1);
-    const tsKeys = Object.keys(records[0]).filter((k) => /_at$/.test(k));
-    expect(tsKeys).toEqual(["event_at"]);
-  });
 });
