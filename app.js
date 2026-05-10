@@ -187,7 +187,11 @@ function Dashboard({ cards, panelOpen, onTogglePanel }) {
   // is conditional on `panelOpen` so the panel is absent from the markup
   // when closed. Subsequent steps in this chore will add the header and body.
   const panelSurface = panelOpen
-    ? html`<div class="tweaks-panel-surface"></div>`
+    ? html`
+        <div class="tweaks-panel-surface">
+          <h2 class="tweaks-panel-header">Tweaks</h2>
+        </div>
+      `
     : null;
   return html`
     <div>
