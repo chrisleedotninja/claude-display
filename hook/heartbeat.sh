@@ -65,6 +65,13 @@ if [ "$hook_event_name" = "SessionEnd" ]; then
   exit 0
 fi
 
+# Lowercased message — used by both the status mapping and the needs
+# auto-derivation table (ADR 0003) for case-insensitive `permission` substring
+# matching. Computed unconditionally so both downstream branches can read it
+# under `set -u`, regardless of whether the status path was reached via the
+# override or via the static map.
+lower_message="$(printf '%s' "$message" | tr '[:upper:]' '[:lower:]')"
+
 # Static map fall-through when no valid override is set.
 if [ -z "$status" ]; then
   case "$hook_event_name" in
@@ -76,7 +83,6 @@ if [ -z "$status" ]; then
       ;;
     Notification)
       # Case-insensitive substring check for "permission".
-      lower_message="$(printf '%s' "$message" | tr '[:upper:]' '[:lower:]')"
       case "$lower_message" in
         *permission*) status="approval" ;;
         *) status="waiting" ;;
@@ -108,6 +114,19 @@ case "$needs_override" in
     needs="$needs_override"
     ;;
 esac
+
+# Per-event auto-derivation table (ADR 0003). Only fires when the override
+# didn't yield a value above. Only one row auto-emits a value:
+#   Notification whose `message` contains `permission` (case-insensitive)
+#   → approve-tool
+# Reuses the same lower_message variable computed for the status mapping
+# above (ADR 0002), so a single substring check feeds both fields. Every
+# other event lacks a discriminator and remains override-only.
+if [ -z "$needs" ] && [ "$hook_event_name" = "Notification" ]; then
+  case "$lower_message" in
+    *permission*) needs="approve-tool" ;;
+  esac
+fi
 
 pane_or_tty="${TMUX_PANE:-${TTY:-PPID-$PPID}}"
 shell_id_raw="${HOSTNAME}:${pane_or_tty}:${cwd}"
