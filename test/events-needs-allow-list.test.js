@@ -140,4 +140,32 @@ describe("POST /events `needs` field — frozen seven-value allow-list", () => {
       expect(Object.hasOwn(rec, "needs")).toBe(false);
     }
   });
+
+  it("drops an empty-string needs value silently", async () => {
+    const postRes = await fetch(`${baseUrl}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: "emptyneed",
+        id_raw: "host:pane:/cwd/emptyneed",
+        status: "working",
+        needs: "",
+      }),
+    });
+    // "Drop, do not reject" — empty string still produces a 2xx response.
+    expect([200, 202]).toContain(postRes.status);
+
+    const records = await (await fetch(`${baseUrl}/api/state`)).json();
+    expect(records).toHaveLength(1);
+    const rec = records[0];
+
+    // The rest of the payload still round-trips.
+    expect(rec.id).toBe("emptyneed");
+    expect(rec.id_raw).toBe("host:pane:/cwd/emptyneed");
+    expect(rec.status).toBe("working");
+
+    // No `needs` key on the record — the empty string is not a member of the
+    // allow-list and gets dropped silently.
+    expect(Object.hasOwn(rec, "needs")).toBe(false);
+  });
 });
