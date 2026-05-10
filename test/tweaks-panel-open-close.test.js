@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { nextPanelOpen } from "../app.js";
+import { createServer } from "../server.js";
 
 describe("nextPanelOpen pure toggle helper (Step 1)", () => {
   it("returns true when previous state is false", () => {
@@ -30,5 +31,38 @@ describe("nextPanelOpen pure toggle helper (Step 1)", () => {
     expect(nextPanelOpen("nope")).toBe(true);
     expect(nextPanelOpen({})).toBe(true);
     expect(nextPanelOpen([])).toBe(true);
+  });
+});
+
+describe("served /app.js panel-open state defaults closed and gates the surface (Step 2)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js initialises the panel-open variable to false (panel starts closed)", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Match a `let panelOpen = false` (or `let panelOpen=false`) initialiser.
+    // Using a tolerant regex so an explicit type annotation or surrounding
+    // whitespace doesn't break the assertion.
+    const initRe = /\b(?:let|var|const)\s+panelOpen\s*=\s*false\b/;
+    expect(initRe.test(body)).toBe(true);
+  });
+
+  it("served /app.js renders the panel surface conditionally on panelOpen (not unconditionally)", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Mirrors the `guardThenClass` pattern in test/dashboard-card-elapsed.test.js:
+    // a guard mentioning panelOpen precedes the panel-surface class string.
+    const guardThenClass = /panelOpen[^]*?tweaks-panel-surface/;
+    expect(guardThenClass.test(body)).toBe(true);
+    // And belt-and-braces: the surface class must appear in the source at all.
+    expect(body.includes("tweaks-panel-surface")).toBe(true);
   });
 });
