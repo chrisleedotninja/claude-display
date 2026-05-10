@@ -53,7 +53,7 @@ describe("hook posts identity", () => {
 
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd: "/some/dir" }),
+      stdin: JSON.stringify({ cwd: "/some/dir", hook_event_name: "SessionStart" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
@@ -64,8 +64,8 @@ describe("hook posts identity", () => {
     const expectedId = sha256Prefix(expectedRaw);
     expect(records[0].id_raw).toBe(expectedRaw);
     expect(records[0].id).toBe(expectedId);
-    // The hook still posts "active" today (hook-side mapping ships in [020]/[021]).
-    // Per chore [017], the server now collapses any non-allow-list status to "idle".
+    // Per chore [021], the hook now auto-derives "idle" from SessionStart
+    // (instead of the legacy literal "active" that the server collapsed).
     expect(records[0].status).toBe("idle");
   });
 
@@ -79,7 +79,7 @@ describe("hook posts identity", () => {
 
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd: "/x" }),
+      stdin: JSON.stringify({ cwd: "/x", hook_event_name: "SessionStart" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
@@ -101,7 +101,7 @@ describe("hook posts identity", () => {
 
     const { exitCode, stderr } = await runHook({
       env,
-      stdin: JSON.stringify({ cwd: "/y" }),
+      stdin: JSON.stringify({ cwd: "/y", hook_event_name: "SessionStart" }),
     });
     expect(exitCode, `stderr: ${stderr}`).toBe(0);
 
@@ -120,7 +120,7 @@ describe("hook posts identity", () => {
       TMUX_PANE: "%5",
       CLAUDE_DISPLAY_URL: baseUrl,
     };
-    const stdin = JSON.stringify({ cwd: "/p" });
+    const stdin = JSON.stringify({ cwd: "/p", hook_event_name: "SessionStart" });
 
     const first = await runHook({ env, stdin });
     expect(first.exitCode, `stderr: ${first.stderr}`).toBe(0);
@@ -130,7 +130,7 @@ describe("hook posts identity", () => {
     const stateRes = await fetch(`${baseUrl}/api/state`);
     const records = await stateRes.json();
     expect(records).toHaveLength(1);
-    // See note above: hook posts "active"; server [017] collapses to "idle".
+    // Per chore [021], SessionStart auto-derives "idle".
     expect(records[0].status).toBe("idle");
   });
 });
