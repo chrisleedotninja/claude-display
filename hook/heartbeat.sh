@@ -224,8 +224,13 @@ else
     approval|waiting|blocked) needs_for_payload="$needs" ;;
   esac
 
+  # Capture the operator-supplied instance label from the environment. The
+  # env var is the sole source — no fallback chain. Empty / unset falls
+  # through to the conditional-assign guard below (omit the field).
+  instance="${CLAUDE_DISPLAY_INSTANCE:-}"
+
   body="$(bun -e '
-    const [id, id_raw, status, repo, branch, session_label, desktop, event_at, needs] = process.argv.slice(1);
+    const [id, id_raw, status, repo, branch, session_label, desktop, event_at, needs, instance] = process.argv.slice(1);
     const payload = { id, id_raw, status, repo, branch, event_at: Number(event_at) };
     if (typeof session_label === "string" && session_label.length > 0) {
       payload.session_label = session_label;
@@ -236,8 +241,11 @@ else
     if (typeof needs === "string" && needs.length > 0) {
       payload.needs = needs;
     }
+    if (typeof instance === "string" && instance.length > 0) {
+      payload.instance = instance;
+    }
     process.stdout.write(JSON.stringify(payload));
-  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at" "$needs_for_payload")"
+  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at" "$needs_for_payload" "$instance")"
 fi
 
 curl --silent --show-error \
