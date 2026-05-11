@@ -371,13 +371,13 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
       style=${`--card-status-color: ${color}; --accent: ${color}; view-transition-name: card-${id}${hasSubagents ? "; border-radius: 8px 8px 0 0" : ""}`}
     >
       <div class="card-rail">
-        <span class="card-rail-chip">
+        <span class="card-rail-chip card-status-icon">
           <${StatusGlyph} status=${status} anim=${anim} size=${16} />
         </span>
       </div>
       <div class="card-body">
         <div class="card-body-head">
-          <span class="card-body-id">${id}</span>
+          <span class="card-body-id card-id">${id}</span>
           ${branch ? html`<span class="card-meta-branch">${branch}</span>` : null}
           ${subagentCount > 0 ? html`<span class="card-body-subcount">${subagentCount}</span>` : null}
           ${hasElapsed ? html`<span class="card-body-time">${elapsed}</span>` : null}
