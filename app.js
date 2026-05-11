@@ -84,6 +84,9 @@ export function cardsFromState(records, now = Date.now()) {
       if (typeof r.instance === "string" && r.instance.length > 0) {
         card.instance = r.instance;
       }
+      if (typeof r.title === "string" && r.title.length > 0) {
+        card.title = r.title;
+      }
       if (
         typeof r.event_at === "number" &&
         Number.isFinite(r.event_at) &&
@@ -358,10 +361,11 @@ function needKeyFor(needs_tag) {
   return null;
 }
 
-function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, instance, elapsed, subagents, needs_tag, anim }) {
+function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, instance, title, elapsed, subagents, needs_tag, anim }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
   const hasInstance = typeof instance === "string" && instance.length > 0;
+  const hasTitle = typeof title === "string" && title.length > 0;
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
   const needKey = needKeyFor(needs_tag);
   const className = isAttentionStatus(status) ? "card is-attention" : "card";
@@ -399,6 +403,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
         ${hasLabel ? html`<div class="card-meta-row"><span class="card-meta-session">${session_label}</span></div>` : null}
         ${hasDesktop ? html`<div class="card-meta-row"><span class="card-meta-desktop">${desktop}</span></div>` : null}
         ${hasInstance ? html`<div class="card-meta-row"><span class="card-meta-instance">${instance}</span></div>` : null}
+        ${hasTitle ? html`<div class="card-meta-row"><span class="card-meta-title">${title}</span></div>` : null}
       </div>
     </div>
   `;
@@ -450,6 +455,7 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
                     session_label=${c.session_label}
                     desktop=${c.desktop}
                     instance=${c.instance}
+                    title=${c.title}
                     elapsed=${c.elapsed}
                     subagents=${c.subagents}
                     needs_tag=${c.needs_tag}

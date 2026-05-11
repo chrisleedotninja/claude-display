@@ -218,6 +218,9 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         if (typeof payload.instance === "string" && payload.instance.length > 0) {
           record.instance = payload.instance;
         }
+        if (typeof payload.title === "string" && payload.title.length > 0) {
+          record.title = payload.title;
+        }
         if (
           typeof payload.event_at === "number" &&
           Number.isFinite(payload.event_at) &&
