@@ -81,6 +81,9 @@ export function cardsFromState(records, now = Date.now()) {
       if (typeof r.desktop === "string" && r.desktop.length > 0) {
         card.desktop = r.desktop;
       }
+      if (typeof r.detail === "string" && r.detail.length > 0) {
+        card.detail = r.detail;
+      }
       if (
         typeof r.event_at === "number" &&
         Number.isFinite(r.event_at) &&
@@ -355,9 +358,10 @@ function needKeyFor(needs_tag) {
   return null;
 }
 
-function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, elapsed, subagents, needs_tag, anim }) {
+function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, detail, elapsed, subagents, needs_tag, anim }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
+  const hasDetail = typeof detail === "string" && detail.length > 0;
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
   const needKey = needKeyFor(needs_tag);
   const className = isAttentionStatus(status) ? "card is-attention" : "card";
@@ -383,6 +387,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
           ${hasElapsed ? html`<span class="card-body-time">${elapsed}</span>` : null}
         </div>
         <div class="card-body-title">${label}</div>
+        ${hasDetail ? html`<div class="card-body-detail">${detail}</div>` : null}
         ${hasElapsed ? html`<div class="card-meta-elapsed">${elapsed}</div>` : null}
         ${needs_tag
           ? html`<div class="card-needs-pill" data-need=${needKey}>
@@ -444,6 +449,7 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
                     branch=${c.branch}
                     session_label=${c.session_label}
                     desktop=${c.desktop}
+                    detail=${c.detail}
                     elapsed=${c.elapsed}
                     subagents=${c.subagents}
                     needs_tag=${c.needs_tag}

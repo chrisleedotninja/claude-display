@@ -224,8 +224,19 @@ else
     approval|waiting|blocked) needs_for_payload="$needs" ;;
   esac
 
+  # Capture the CLAUDE_DISPLAY_DETAIL override at fire time. Trim leading and
+  # trailing whitespace so a whitespace-only override falls through as if
+  # unset (matches the spec's "non-whitespace-only" requirement); the
+  # downstream `typeof X === "string" && X.length > 0` guard in the bun -e
+  # JSON-build step then drops the empty result. Mirrors the override-only
+  # authoring pattern of `instance` (sibling chore [060]); divergence from
+  # that precedent is the trim, mirroring `title` (chore [061]).
+  detail="${CLAUDE_DISPLAY_DETAIL:-}"
+  detail="${detail#"${detail%%[![:space:]]*}"}"
+  detail="${detail%"${detail##*[![:space:]]}"}"
+
   body="$(bun -e '
-    const [id, id_raw, status, repo, branch, session_label, desktop, event_at, needs] = process.argv.slice(1);
+    const [id, id_raw, status, repo, branch, session_label, desktop, event_at, needs, detail] = process.argv.slice(1);
     const payload = { id, id_raw, status, repo, branch, event_at: Number(event_at) };
     if (typeof session_label === "string" && session_label.length > 0) {
       payload.session_label = session_label;
@@ -236,8 +247,11 @@ else
     if (typeof needs === "string" && needs.length > 0) {
       payload.needs = needs;
     }
+    if (typeof detail === "string" && detail.length > 0) {
+      payload.detail = detail;
+    }
     process.stdout.write(JSON.stringify(payload));
-  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at" "$needs_for_payload")"
+  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at" "$needs_for_payload" "$detail")"
 fi
 
 curl --silent --show-error \
