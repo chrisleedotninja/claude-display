@@ -86,10 +86,10 @@ describe("dashboard static routes", () => {
     );
   });
 
-  it("served /styles.css carries the locked silhouette: .card class and a system-font stack", async () => {
+  it("served /styles.css carries the locked silhouette: .card class and Inter Tight font", async () => {
     const res = await fetch(`${baseUrl}/styles.css`);
     const body = await res.text();
     expect(/\.card\b/.test(body)).toBe(true);
-    expect(body.includes("-apple-system")).toBe(true);
+    expect(body.includes("Inter Tight")).toBe(true);
   });
 });

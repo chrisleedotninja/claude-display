@@ -49,14 +49,14 @@ describe("served Card source references card-session-label", () => {
     handle.stop();
   });
 
-  it("served /app.js source contains the literal class name card-session-label", async () => {
+  it("served /app.js source contains the literal class name card-meta-session", async () => {
     const res = await fetch(`${baseUrl}/app.js`);
     expect(res.status).toBe(200);
     const body = await res.text();
-    expect(body.includes("card-session-label")).toBe(true);
+    expect(body.includes("card-meta-session")).toBe(true);
   });
 
-  it("served /app.js source guards the card-session-label element on session_label being present and non-empty", async () => {
+  it("served /app.js source guards the card-meta-session element on session_label being present and non-empty", async () => {
     const res = await fetch(`${baseUrl}/app.js`);
     const body = await res.text();
     // The structure must be: a guard mentioning session_label, then the
@@ -66,14 +66,14 @@ describe("served Card source references card-session-label", () => {
     // class-name string in the source — i.e. the class is not unconditionally
     // emitted. This is the same kind of structural source check used by
     // dashboard-html-shape.test.js.
-    const guardThenClass = /session_label[^]*?card-session-label/;
+    const guardThenClass = /session_label[^]*?card-meta-session/;
     expect(guardThenClass.test(body)).toBe(true);
   });
 
-  it("served /styles.css defines a .card-session-label rule", async () => {
+  it("served /styles.css defines a .card-meta-session rule", async () => {
     const res = await fetch(`${baseUrl}/styles.css`);
     expect(res.status).toBe(200);
     const body = await res.text();
-    expect(/\.card-session-label\b/.test(body)).toBe(true);
+    expect(/\.card-meta-session\b/.test(body)).toBe(true);
   });
 });

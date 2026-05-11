@@ -36,13 +36,13 @@ describe("served /app.js carries the locked repo/branch silhouette", () => {
     handle.stop();
   });
 
-  it("references card-repo and card-branch class names and uses no placeholder fallback", async () => {
+  it("references card-meta-repo and card-meta-branch class names and uses no placeholder fallback", async () => {
     const res = await fetch(`${baseUrl}/app.js`);
     expect(res.status).toBe(200);
     const body = await res.text();
 
-    expect(body.includes("card-repo")).toBe(true);
-    expect(body.includes("card-branch")).toBe(true);
+    expect(body.includes("card-meta-repo")).toBe(true);
+    expect(body.includes("card-meta-branch")).toBe(true);
 
     // The render path must not fall back to "unknown" or a literal "-" stand-in
     // for the repo/branch value. (Substring check — the file is small enough
@@ -50,15 +50,15 @@ describe("served /app.js carries the locked repo/branch silhouette", () => {
     // we'd notice immediately.)
     expect(/["']unknown["']/.test(body)).toBe(false);
     // A literal lone "-" used as a placeholder string. Allow "-" inside class
-    // names (e.g. "card-repo") by checking only quoted forms.
+    // names (e.g. "card-meta-repo") by checking only quoted forms.
     expect(/["']-["']/.test(body)).toBe(false);
   });
 
-  it("served /styles.css defines .card-repo and .card-branch rules", async () => {
+  it("served /styles.css defines .card-meta-repo and .card-meta-branch rules", async () => {
     const res = await fetch(`${baseUrl}/styles.css`);
     expect(res.status).toBe(200);
     const body = await res.text();
-    expect(/\.card-repo\b/.test(body)).toBe(true);
-    expect(/\.card-branch\b/.test(body)).toBe(true);
+    expect(/\.card-meta-repo\b/.test(body)).toBe(true);
+    expect(/\.card-meta-branch\b/.test(body)).toBe(true);
   });
 });

@@ -14,7 +14,7 @@ describe("served /app.js wires the nested view-model into the render template", 
     handle.stop();
   });
 
-  it("references subagents inside a .map( invocation and emits a subagent-card class", async () => {
+  it("references subagents inside a .map( invocation and emits ms-sub class (updated chore [052])", async () => {
     const res = await fetch(`${baseUrl}/app.js`);
     expect(res.status).toBe(200);
     const body = await res.text();
@@ -23,8 +23,8 @@ describe("served /app.js wires the nested view-model into the render template", 
     // consumes the extended view-model rather than ignoring it.
     expect(/subagents[^\n]*\.map\(/.test(body) || /subagents\.map\(/.test(body)).toBe(true);
 
-    // The nested cards carry the distinct class hook the styling step needs.
-    expect(body.includes("subagent-card")).toBe(true);
+    // The nested cards carry the ms-sub class (replaces old subagent-card).
+    expect(body.includes("ms-sub")).toBe(true);
 
     // Existing checks stay green: cardsFromState reference and root mount.
     expect(body.includes("cardsFromState")).toBe(true);

@@ -14,19 +14,19 @@ describe("served Card source references card-elapsed", () => {
     handle.stop();
   });
 
-  it("served /app.js source contains the literal class name card-elapsed", async () => {
+  it("served /app.js source contains the literal class name card-meta-elapsed", async () => {
     const res = await fetch(`${baseUrl}/app.js`);
     expect(res.status).toBe(200);
     const body = await res.text();
-    expect(body.includes("card-elapsed")).toBe(true);
+    expect(body.includes("card-meta-elapsed")).toBe(true);
   });
 
-  it("served /app.js source guards the card-elapsed element on elapsed being present", async () => {
+  it("served /app.js source guards the card-meta-elapsed element on elapsed being present", async () => {
     const res = await fetch(`${baseUrl}/app.js`);
     const body = await res.text();
     // Same structural-source check pattern as dashboard-card-session-label:
     // a guard mentioning `elapsed` precedes the class-name string.
-    const guardThenClass = /elapsed[^]*?card-elapsed/;
+    const guardThenClass = /elapsed[^]*?card-meta-elapsed/;
     expect(guardThenClass.test(body)).toBe(true);
   });
 
@@ -43,10 +43,10 @@ describe("served Card source references card-elapsed", () => {
     expect(/setInterval\s*\(/.test(body)).toBe(true);
   });
 
-  it("served /styles.css defines a .card-elapsed rule", async () => {
+  it("served /styles.css defines a .card-meta-elapsed rule", async () => {
     const res = await fetch(`${baseUrl}/styles.css`);
     expect(res.status).toBe(200);
     const body = await res.text();
-    expect(/\.card-elapsed\b/.test(body)).toBe(true);
+    expect(/\.card-meta-elapsed\b/.test(body)).toBe(true);
   });
 });

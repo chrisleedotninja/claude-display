@@ -105,27 +105,49 @@ describe("served /styles.css renders rail in per-status color on .card.is-attent
     expect(anyHasColor).toBe(true);
   });
 
-  it("every occurrence of the word `rail` sits inside a .card.is-attention rule block", async () => {
+  it(".card-rail selector exists as a structural column rule outside .card.is-attention", async () => {
     const body = await (await fetch(`${baseUrl}/styles.css`)).text();
-    // Strategy: collect ranges of every .card.is-attention { ... } block,
-    // then every match of /rail/ must fall inside at least one block.
-    const ranges = [];
-    const blockRe = /\.card\.is-attention\s*\{[^}]*\}/g;
+    // Collect ranges of every .card.is-attention { ... } block.
+    const attentionRanges = [];
+    const attentionRe = /\.card\.is-attention\s*\{[^}]*\}/g;
     let bm;
-    while ((bm = blockRe.exec(body)) !== null) {
-      ranges.push([bm.index, bm.index + bm[0].length]);
+    while ((bm = attentionRe.exec(body)) !== null) {
+      attentionRanges.push([bm.index, bm.index + bm[0].length]);
     }
-    expect(ranges.length).toBeGreaterThan(0);
-    const railRe = /rail/gi;
+    // Find a .card-rail rule anywhere in the CSS.
+    const railRuleRe = /\.card-rail\b/g;
     let rm;
-    while ((rm = railRe.exec(body)) !== null) {
-      const inside = ranges.some(([s, e]) => rm.index >= s && rm.index < e);
-      expect(inside).toBe(true);
+    let foundOutsideAttention = false;
+    while ((rm = railRuleRe.exec(body)) !== null) {
+      const insideAttention = attentionRanges.some(([s, e]) => rm.index >= s && rm.index < e);
+      if (!insideAttention) {
+        foundOutsideAttention = true;
+        break;
+      }
+    }
+    expect(foundOutsideAttention).toBe(true);
+  });
+
+  it("attention ring/glow/animation are exclusively scoped to .card.is-attention, not to bare .card-rail", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    // Walk every CSS rule block. For any block whose selector contains
+    // .card-rail but NOT .is-attention, forbid animation and box-shadow
+    // (these are the attention-treatment properties).
+    const blockRe = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = blockRe.exec(body)) !== null) {
+      const selector = m[1].trim();
+      const decls = m[2];
+      if (selector.startsWith("@")) continue;
+      if (!/\.card-rail\b/.test(selector)) continue;
+      if (selector.includes(".is-attention")) continue;
+      // .card-rail rules outside .is-attention must not carry animation or box-shadow glow
+      expect(/\banimation\s*:/.test(decls)).toBe(false);
     }
   });
 });
 
-describe("served /styles.css carries a continuous pulse on .card.is-attention", () => {
+describe("served /styles.css uses ring+glow on .card.is-attention, not animation pulse (updated chore [052])", () => {
   let handle;
   let baseUrl;
 
@@ -138,50 +160,22 @@ describe("served /styles.css carries a continuous pulse on .card.is-attention", 
     handle.stop();
   });
 
-  it("declares an @keyframes rule and an animation: declaration scoped to .card.is-attention", async () => {
-    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
-    expect(/@keyframes\s+\S+\s*\{/.test(body)).toBe(true);
-    // Find a .card.is-attention block that contains an `animation:` shorthand.
-    const re = /\.card\.is-attention\s*\{([^}]*)\}/g;
-    const blocks = [];
-    let m;
-    while ((m = re.exec(body)) !== null) blocks.push(m[1]);
-    const animBlock = blocks.find((b) => /\banimation\s*:/.test(b));
-    expect(animBlock).toBeDefined();
-  });
-
-  it("the animation on .card.is-attention is infinite", async () => {
+  it(".card.is-attention has no animation: shorthand (old pulse retired)", async () => {
     const body = await (await fetch(`${baseUrl}/styles.css`)).text();
     const re = /\.card\.is-attention\s*\{([^}]*)\}/g;
-    let foundInfinite = false;
     let m;
     while ((m = re.exec(body)) !== null) {
-      const animMatch = m[1].match(/\banimation\s*:[^;]*;/);
-      if (animMatch && /\binfinite\b/.test(animMatch[0])) {
-        foundInfinite = true;
-      }
+      expect(/\banimation\s*:/.test(m[1])).toBe(false);
     }
-    expect(foundInfinite).toBe(true);
   });
 
-  it("the animation duration is between 1.2s and 4s (subtle, not strobing)", async () => {
+  it(".card.is-attention has no border-left: 4px rail declaration (old rail retired)", async () => {
     const body = await (await fetch(`${baseUrl}/styles.css`)).text();
     const re = /\.card\.is-attention\s*\{([^}]*)\}/g;
-    let durationSeconds = null;
     let m;
     while ((m = re.exec(body)) !== null) {
-      const animMatch = m[1].match(/\banimation\s*:[^;]*;/);
-      if (!animMatch) continue;
-      // Parse the first time value (Ns or Nms) in the shorthand.
-      const tMatch = animMatch[0].match(/(\d+(?:\.\d+)?)(ms|s)\b/);
-      if (!tMatch) continue;
-      const value = parseFloat(tMatch[1]);
-      durationSeconds = tMatch[2] === "ms" ? value / 1000 : value;
-      break;
+      expect(/\bborder-left\s*:\s*4px/.test(m[1])).toBe(false);
     }
-    expect(durationSeconds).not.toBeNull();
-    expect(durationSeconds).toBeGreaterThanOrEqual(1.2);
-    expect(durationSeconds).toBeLessThanOrEqual(4);
   });
 });
 
@@ -235,18 +229,24 @@ describe("non-attention cards never render a rail and never pulse (negative)", (
     }
   });
 
-  it("served /styles.css has no @keyframes rule outside the attention-pulse name", async () => {
-    // Sanity: the only @keyframes shipped by this slice is the pulse keyframes.
+  it("served /styles.css has the six token-layer keyframes (attention-pulse retired in chore [052])", async () => {
+    // Updated for chore [052]: attention-pulse @keyframes is retired (no animation on .card.is-attention).
+    // The token-layer keyframes from chore [048] remain.
     const body = await (await fetch(`${baseUrl}/styles.css`)).text();
     const names = [];
     const re = /@keyframes\s+([\w-]+)\s*\{/g;
     let m;
     while ((m = re.exec(body)) !== null) names.push(m[1]);
-    expect(names.length).toBeGreaterThan(0);
-    for (const n of names) {
-      // every shipped @keyframes is named for attention/pulse purpose
-      expect(/(attention|pulse)/i.test(n)).toBe(true);
-    }
+    // attention-pulse is retired — must not be present
+    expect(names).not.toContain("attention-pulse");
+    // token-layer keyframes must still exist
+    expect(names).toContain("pulseRing");
+    expect(names).toContain("pulseDot");
+    expect(names).toContain("spin");
+    expect(names).toContain("blink");
+    expect(names).toContain("shimmer");
+    // total: at least 5 (token layer) + glyph keyframes from [051]
+    expect(names.length).toBeGreaterThanOrEqual(5);
   });
 });
 
@@ -290,34 +290,28 @@ describe("prefers-reduced-motion: reduce disables the pulse but keeps the rail",
     expect(inner).not.toBeNull();
   });
 
-  it("inside the reduced-motion block, .card.is-attention's animation is none", async () => {
+  it("inside the reduced-motion block, .card.is-attention's box-shadow is none (updated chore [052])", async () => {
     const body = await (await fetch(`${baseUrl}/styles.css`)).text();
     const inner = extractReducedMotionBody(body);
     expect(inner).not.toBeNull();
-    // Must contain a .card.is-attention rule whose animation (or animation-name)
-    // declaration value is `none`.
+    // Must contain a .card.is-attention rule whose box-shadow is none.
+    // (Old assertion was animation: none; new treatment uses box-shadow ring+glow.)
     const ruleRe = /\.card\.is-attention\s*\{([^}]*)\}/g;
     let nuked = false;
     let m;
     while ((m = ruleRe.exec(inner)) !== null) {
-      if (
-        /\banimation\s*:\s*none\b/.test(m[1]) ||
-        /\banimation-name\s*:\s*none\b/.test(m[1])
-      ) {
+      if (/\bbox-shadow\s*:\s*none\b/.test(m[1])) {
         nuked = true;
       }
     }
     expect(nuked).toBe(true);
   });
 
-  it("the reduced-motion block does not null out the rail", async () => {
+  it("the reduced-motion block does not override --card-status-color", async () => {
     const body = await (await fetch(`${baseUrl}/styles.css`)).text();
     const inner = extractReducedMotionBody(body);
     expect(inner).not.toBeNull();
-    // The reduced-motion block must not mention the word `rail` (no rule that
-    // changes border-left, etc., is keyed off rail) and must not override
-    // --card-status-color (which would change the per-status color).
-    expect(/rail/i.test(inner)).toBe(false);
+    // Must not override --card-status-color (which would change the per-status color).
     expect(/--card-status-color\s*:/.test(inner)).toBe(false);
   });
 });

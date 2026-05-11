@@ -17,6 +17,16 @@ import { NEEDS_TOKENS, tokensForNeed } from "./needs-tokens.js";
 
 const html = htm.bind(h);
 
+// Pure helper: compute the opacity for a card at position `idx` in a feed of
+// `total` cards. Newest card (idx=0) renders at full opacity (1.0); oldest
+// (idx=total-1) renders at 0.55. The ramp is linear: opacity decreases by
+// 0.45 across the full feed. Edge case: when total===1, returns 1 so a single
+// card always renders fully opaque. See chore [052].
+export function dimRamp(idx, total) {
+  if (total <= 1) return 1;
+  return 1 - (idx / (total - 1)) * 0.45;
+}
+
 // Format a duration in milliseconds as a human-friendly string in the
 // largest integer unit that fits: `Ns` for [0, 60s), `Nm` for [60s, 60m),
 // `Nh` for [60m, ∞). Floors within each unit. Negative inputs render as the
@@ -202,11 +212,131 @@ export function applyEventToCards(cards, record) {
   return next;
 }
 
-function SubagentCard({ id, status }) {
+// StatusGlyph renders an inline SVG per status. Accepts { status, anim, size }.
+// Uses a discriminant-key switch on the status string — STATUS_TOKENS.*.icon
+// remains a Unicode string for backwards compatibility (status-tokens.test.js
+// must stay green) and is not used here. Fallback is the idle dashed-circle.
+// Animation classes (glyph-spin / glyph-pulse / glyph-blink / glyph-shimmer)
+// are applied to the relevant child element only when `anim` is truthy.
+function StatusGlyph({ status, anim, size = 16 }) {
+  const sz = size;
+  const half = sz / 2;
+  const r = half - 1.5;
+
+  switch (status) {
+    case "working": {
+      // Spinning arc — the moving arc spins when anim is on
+      const arcClass = anim ? "glyph-spin" : "";
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.4" />
+          <path class=${arcClass} d=${`M ${half} ${half - r} A ${r} ${r} 0 0 1 ${half + r} ${half}`} stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="transform-origin: ${half}px ${half}px" />
+        </svg>
+      `;
+    }
+    case "approval": {
+      // Question mark with a pulse ring when anim is on
+      const ringClass = anim ? "glyph-pulse" : "";
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle class=${ringClass} cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1" opacity="0.5" style="transform-origin: ${half}px ${half}px" />
+          <text x=${half} y=${half + 1} text-anchor="middle" dominant-baseline="middle" font-size=${sz * 0.55} fill="currentColor" font-weight="600">?</text>
+        </svg>
+      `;
+    }
+    case "waiting": {
+      // Ellipsis / three dots; middle dot blinks when anim is on
+      const dotClass = anim ? "glyph-blink" : "";
+      const cx1 = half - sz * 0.25;
+      const cx2 = half;
+      const cx3 = half + sz * 0.25;
+      const cy = half;
+      const dr = sz * 0.09;
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${cx1} cy=${cy} r=${dr} fill="currentColor" opacity="0.5" />
+          <circle class=${dotClass} cx=${cx2} cy=${cy} r=${dr} fill="currentColor" />
+          <circle cx=${cx3} cy=${cy} r=${dr} fill="currentColor" opacity="0.5" />
+        </svg>
+      `;
+    }
+    case "blocked": {
+      // Exclamation mark in a circle — no animation
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1.5" />
+          <text x=${half} y=${half + 0.5} text-anchor="middle" dominant-baseline="middle" font-size=${sz * 0.55} fill="currentColor" font-weight="700">!</text>
+        </svg>
+      `;
+    }
+    case "tests": {
+      // Three dots in a speech-bubble style; shimmer when anim is on
+      const shimmerClass = anim ? "glyph-shimmer" : "";
+      const bx = 1.5;
+      const by = 1.5;
+      const bw = sz - 3;
+      const bh = sz * 0.7;
+      const br = 3;
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <rect class=${shimmerClass} x=${bx} y=${by} width=${bw} height=${bh} rx=${br} stroke="currentColor" stroke-width="1.5" />
+          <circle cx=${half - sz * 0.2} cy=${by + bh / 2} r=${sz * 0.07} fill="currentColor" />
+          <circle cx=${half} cy=${by + bh / 2} r=${sz * 0.07} fill="currentColor" />
+          <circle cx=${half + sz * 0.2} cy=${by + bh / 2} r=${sz * 0.07} fill="currentColor" />
+        </svg>
+      `;
+    }
+    case "reviewing": {
+      // Eye / magnifier shape — no animation
+      const rx2 = r * 0.55;
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1.5" />
+          <circle cx=${half} cy=${half} r=${rx2} stroke="currentColor" stroke-width="1" opacity="0.7" />
+        </svg>
+      `;
+    }
+    case "success": {
+      // Checkmark in a circle — no animation
+      const cs = sz * 0.22;
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1.5" />
+          <path d=${`M ${half - cs} ${half} L ${half - cs * 0.2} ${half + cs} L ${half + cs} ${half - cs * 0.8}`} stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      `;
+    }
+    case "idle":
+    default: {
+      // Dashed circle — idle / unknown fallback
+      return html`
+        <svg class="status-glyph" width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" fill="none">
+          <circle cx=${half} cy=${half} r=${r} stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" />
+        </svg>
+      `;
+    }
+  }
+}
+
+// SubagentCard renders one row in the .ms-subs panel. Each row uses a grid
+// layout with three columns: connector glyph, tone-tinted glyph pill with
+// status SVG, and the sub-body (label + instance id). The connector is ├─ for
+// all rows except the last, which uses └─. The caller passes `isLast` to
+// select the correct connector. A `--sub-accent` CSS custom property on the
+// row element carries the tone color for the pill background and chip tinting.
+// See chore [052].
+function SubagentCard({ id, status, color, isLast, anim }) {
+  const connector = isLast ? "└─" : "├─";
   return html`
-    <div class="card subagent-card">
-      <div class="card-id">${id}</div>
-      <div class="card-status">${status}</div>
+    <div class="ms-sub" style=${{ "--sub-accent": color, "--sub-bg": `${color}22` }}>
+      <span class="connector">${connector}</span>
+      <span class="glyph-pill">
+        <${StatusGlyph} status=${status} anim=${anim} size=${12} />
+      </span>
+      <span class="sub-label">${status.toUpperCase()}</span>
+      <div class="sub-body">
+        <span class="sub-name">${id}</span>
+      </div>
     </div>
   `;
 }
@@ -225,68 +355,101 @@ function needKeyFor(needs_tag) {
   return null;
 }
 
-function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, elapsed, subagents, needs_tag }) {
+function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, elapsed, subagents, needs_tag, anim }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
   const needKey = needKeyFor(needs_tag);
   const className = isAttentionStatus(status) ? "card is-attention" : "card";
-  const nested =
-    subagents && subagents.length > 0
-      ? html`
-          <div class="subagents">
-            ${subagents.map((s) => html`<${SubagentCard} id=${s.id} status=${s.status} />`)}
-          </div>
-        `
-      : null;
-  return html`
+  const subagentCount = subagents && subagents.length > 0 ? subagents.length : 0;
+  const hasSubagents = subagentCount > 0;
+
+  const parentCard = html`
     <div
       class=${className}
       data-status=${status}
-      style=${`--card-status-color: ${color}; view-transition-name: card-${id}`}
+      style=${`--card-status-color: ${color}; --accent: ${color}; view-transition-name: card-${id}${hasSubagents ? "; border-radius: 8px 8px 0 0" : ""}`}
     >
-      <div class="card-id">${id}</div>
-      ${repo ? html`<div class="card-repo">${repo}</div>` : null}
-      ${branch ? html`<div class="card-branch">${branch}</div>` : null}
-      ${hasLabel ? html`<div class="card-session-label">${session_label}</div>` : null}
-      ${hasDesktop ? html`<div class="card-desktop">${desktop}</div>` : null}
-      ${hasElapsed ? html`<div class="card-elapsed">${elapsed}</div>` : null}
-      ${needs_tag
-        ? html`<div class="card-needs-tag" data-need=${needKey}>
-            <span class="card-needs-tag-icon">${needs_tag.icon}</span>
-            <span class="card-needs-tag-label">${needs_tag.label}</span>
-          </div>`
-        : null}
-      <span class="card-status-icon">${icon}</span>
-      <div class="card-status">${label}</div>
-      ${nested}
+      <div class="card-rail">
+        <span class="card-rail-chip card-status-icon">
+          <${StatusGlyph} status=${status} anim=${anim} size=${16} />
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-body-head">
+          <span class="card-body-id card-id">${id}</span>
+          ${branch ? html`<span class="card-meta-branch">${branch}</span>` : null}
+          ${subagentCount > 0 ? html`<span class="card-body-subcount">${subagentCount}</span>` : null}
+          ${hasElapsed ? html`<span class="card-body-time">${elapsed}</span>` : null}
+        </div>
+        <div class="card-body-title">${label}</div>
+        ${hasElapsed ? html`<div class="card-meta-elapsed">${elapsed}</div>` : null}
+        ${needs_tag
+          ? html`<div class="card-needs-pill" data-need=${needKey}>
+              ⚑ ${needs_tag.label}
+            </div>`
+          : null}
+      </div>
+      <div class="card-meta">
+        ${repo ? html`<div class="card-meta-row"><span class="card-meta-repo">${repo}</span></div>` : null}
+        ${hasLabel ? html`<div class="card-meta-row"><span class="card-meta-session">${session_label}</span></div>` : null}
+        ${hasDesktop ? html`<div class="card-meta-row"><span class="card-meta-desktop">${desktop}</span></div>` : null}
+      </div>
+    </div>
+  `;
+
+  if (!hasSubagents) return parentCard;
+
+  // Wrap in .ms-group with a .ms-subs panel below when subagents are present.
+  const subsPanel = html`
+    <div class="ms-subs">
+      ${subagents.map((s, i) => {
+        const subColor = tokensForStatus(s.status).color;
+        return html`<${SubagentCard}
+          key=${s.id}
+          id=${s.id}
+          status=${s.status}
+          color=${subColor}
+          isLast=${i === subagents.length - 1}
+          anim=${anim}
+        />`;
+      })}
+    </div>
+  `;
+
+  return html`
+    <div class="ms-group has-children">
+      ${parentCard}
+      ${subsPanel}
     </div>
   `;
 }
 
-function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone, visibleFields, onToggleField }) {
+function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggleTone, visibleFields, onToggleField, anim, onToggleAnim }) {
   const cardsTree =
     cards.length === 0
       ? html`<div class="empty-state">No sessions yet.</div>`
       : html`
           <div class="cards">
             ${cards.map(
-              (c) =>
-                html`<${Card}
-                  key=${c.id}
-                  id=${c.id}
-                  status=${c.status}
-                  color=${c.color}
-                  icon=${c.icon}
-                  label=${c.label}
-                  repo=${c.repo}
-                  branch=${c.branch}
-                  session_label=${c.session_label}
-                  desktop=${c.desktop}
-                  elapsed=${c.elapsed}
-                  subagents=${c.subagents}
-                  needs_tag=${c.needs_tag}
-                />`,
+              (c, i) =>
+                html`<div key=${c.id} style=${{ opacity: dimRamp(i, cards.length) }}>
+                  <${Card}
+                    id=${c.id}
+                    status=${c.status}
+                    color=${c.color}
+                    icon=${c.icon}
+                    label=${c.label}
+                    repo=${c.repo}
+                    branch=${c.branch}
+                    session_label=${c.session_label}
+                    desktop=${c.desktop}
+                    elapsed=${c.elapsed}
+                    subagents=${c.subagents}
+                    needs_tag=${c.needs_tag}
+                    anim=${anim}
+                  />
+                </div>`,
             )}
           </div>
         `;
@@ -318,6 +481,20 @@ function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone,
         <div class="tweaks-panel-surface">
           <h2 class="tweaks-panel-header">Tweaks</h2>
           <div class="tweaks-panel-body">
+            ${h("span", { class: "tweaks-panel-section-label" }, "Appearance")}
+            ${h(
+              "button",
+              {
+                type: "button",
+                class: anim
+                  ? "tweaks-anim-toggle is-on"
+                  : "tweaks-anim-toggle",
+                "aria-pressed": anim ? "true" : "false",
+                onClick: onToggleAnim,
+              },
+              "animation",
+            )}
+            ${h("span", { class: "tweaks-panel-section-label" }, "Filters")}
             ${["attention", "active", "success", "neutral"].map((tone) =>
               h(
                 "button",
@@ -333,6 +510,7 @@ function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone,
                 tone,
               ),
             )}
+            ${h("span", { class: "tweaks-panel-section-label" }, "Metadata fields")}
             ${["repo", "branch", "session", "desktop", "elapsed"].map((field) =>
               h(
                 "button",
@@ -353,7 +531,9 @@ function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone,
       `
     : null;
   return html`
-    <div>
+    <div class=${anim ? "" : "anim-off"}>
+      <${HeaderStrip} now=${now} />
+      <${StatsStrip} cards=${cards} />
       <button
         type="button"
         class="tweaks-panel-toggle"
@@ -363,6 +543,82 @@ function Dashboard({ cards, panelOpen, onTogglePanel, activeTones, onToggleTone,
       </button>
       ${panelSurface}
       ${cardsTree}
+    </div>
+  `;
+}
+
+// Pure helper: format a Unix timestamp in milliseconds as a zero-padded
+// "HH:MM" string using local time. Non-finite or negative inputs return
+// "--:--" (the caller expects "clock unavailable" semantics). See chore [049].
+export function formatClock(ms) {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) return "--:--";
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+// Preact functional component: renders the header strip with the dashboard
+// title on the left and a live HH:MM clock on the right.
+// Accepts a `now` prop (Unix timestamp ms) for the clock value.
+// See chore [049].
+export function HeaderStrip({ now }) {
+  return html`
+    <div class="ms-head">
+      <span class="ms-head-title">claude-display</span>
+      <span class="ms-head-clock">${formatClock(now)}</span>
+    </div>
+  `;
+}
+
+// Pure helper: compute five stat counts from the filtered cards array.
+// Returns { awaiting, blocked, active, done, instances }.
+//   awaiting  = count of cards with status "waiting" or "approval"
+//   blocked   = count of cards with status "blocked"
+//   active    = count of cards with status "working", "tests", or "reviewing"
+//   done      = count of cards with status "success"
+//   instances = cards.length (always non-negative)
+// All counts are non-negative integers; an empty array returns all zeros.
+// See chore [049].
+export function statsFromCards(cards) {
+  let awaiting = 0, blocked = 0, active = 0, done = 0;
+  for (const card of cards) {
+    const s = card.status;
+    if (s === "waiting" || s === "approval") awaiting++;
+    else if (s === "blocked") blocked++;
+    else if (s === "working" || s === "tests" || s === "reviewing") active++;
+    else if (s === "success") done++;
+  }
+  return { awaiting, blocked, active, done, instances: cards.length };
+}
+
+// Preact functional component: renders the stats strip with five stat cells.
+// Accepts a `cards` prop (filtered cards array) and derives counts via
+// `statsFromCards`. See chore [049].
+export function StatsStrip({ cards }) {
+  const { awaiting, blocked, active, done, instances } = statsFromCards(cards || []);
+  return html`
+    <div class="ms-board">
+      <div class="ms-stat-cell">
+        <span class="ms-stat-label">Awaiting</span>
+        <span class="ms-stat-value" style="color: var(--tn-yellow)">${awaiting}</span>
+      </div>
+      <div class="ms-stat-cell">
+        <span class="ms-stat-label">Blocked</span>
+        <span class="ms-stat-value" style="color: var(--tn-red)">${blocked}</span>
+      </div>
+      <div class="ms-stat-cell">
+        <span class="ms-stat-label">Active</span>
+        <span class="ms-stat-value" style="color: var(--tn-blue)">${active}</span>
+      </div>
+      <div class="ms-stat-cell">
+        <span class="ms-stat-label">Done</span>
+        <span class="ms-stat-value" style="color: var(--tn-green)">${done}</span>
+      </div>
+      <div class="ms-stat-cell">
+        <span class="ms-stat-label">Instances</span>
+        <span class="ms-stat-value">${instances}</span>
+      </div>
     </div>
   `;
 }
@@ -521,6 +777,10 @@ export async function mount(rootEl) {
   // (chore [003]) stay untouched and AC4 holds automatically. Hydrated
   // from the persistence layer (chore [039]).
   let visibleFields = hydrateVisibleFields(storage, new Set(["repo", "branch", "session", "desktop", "elapsed"]));
+  // Animation toggle (chore [051]). Closure-level boolean, defaults true (animations on).
+  // When false, the Dashboard root carries class `anim-off` which suppresses all
+  // glyph keyframe animations via CSS. Mirrors the `panelOpen` toggle pattern.
+  let anim = true;
   // Coalescing writers (chore [039]). A burst of synchronous toggles
   // produces exactly one write per writer of the final snapshot — the
   // injected `scheduleWrite` defers the flush so the writer collapses
@@ -550,9 +810,14 @@ export async function mount(rootEl) {
     fieldsWriter.schedule(visibleFields);
     draw();
   };
+  const toggleAnim = () => {
+    anim = !anim;
+    draw();
+  };
   const draw = () => {
+    const now = Date.now();
     const cards = stripHiddenFields(
-      filterCardsByTones(cardsFromState(records, Date.now()), activeTones),
+      filterCardsByTones(cardsFromState(records, now), activeTones),
       visibleFields,
     );
     return withReorderTransition(
@@ -561,12 +826,15 @@ export async function mount(rootEl) {
         render(
           html`<${Dashboard}
             cards=${cards}
+            now=${now}
             panelOpen=${panelOpen}
             onTogglePanel=${togglePanel}
             activeTones=${activeTones}
             onToggleTone=${toggleTone}
             visibleFields=${visibleFields}
             onToggleField=${toggleField}
+            anim=${anim}
+            onToggleAnim=${toggleAnim}
           />`,
           rootEl,
         ),

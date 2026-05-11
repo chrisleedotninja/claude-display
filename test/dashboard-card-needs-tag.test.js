@@ -139,7 +139,7 @@ describe("cardsFromState needs_tag projection — omitted for absent / unrecogni
   });
 });
 
-describe("served Card source references card-needs-tag", () => {
+describe("served Card source references card-needs-pill", () => {
   let handle;
   let baseUrl;
 
@@ -152,46 +152,37 @@ describe("served Card source references card-needs-tag", () => {
     handle.stop();
   });
 
-  it("served /app.js source contains the literal class name card-needs-tag", async () => {
+  it("served /app.js source contains the literal class name card-needs-pill", async () => {
     const res = await fetch(`${baseUrl}/app.js`);
     expect(res.status).toBe(200);
     const body = await res.text();
-    expect(body.includes("card-needs-tag")).toBe(true);
+    expect(body.includes("card-needs-pill")).toBe(true);
   });
 
-  it("served /app.js source guards the card-needs-tag element on needs_tag being present", async () => {
+  it("served /app.js source guards the card-needs-pill element on needs_tag being present", async () => {
     const res = await fetch(`${baseUrl}/app.js`);
     const body = await res.text();
     // Same structural-source check pattern as dashboard-card-elapsed and
     // dashboard-card-session-label: a guard mentioning `needs_tag` precedes
     // the class-name string. Establishes that the class is not unconditionally
     // emitted.
-    const guardThenClass = /needs_tag[^]*?card-needs-tag/;
+    const guardThenClass = /needs_tag[^]*?card-needs-pill/;
     expect(guardThenClass.test(body)).toBe(true);
   });
 
-  it("served /app.js source emits the card-needs-tag class only inside a guard on needs_tag", async () => {
-    // Negative-source mirror of the rail-pulse "no unconditional 'card is-attention'"
-    // check: every occurrence of the bare class string `card-needs-tag` (the
-    // tag's own class — not the descendants `card-needs-tag-icon` /
-    // `card-needs-tag-label`) must be preceded somewhere upstream by a
-    // mention of `needs_tag` so the element is gated. We strip the descendant
-    // class names first so they don't false-positive on the bare-class regex.
+  it("served /app.js source emits the card-needs-pill class only inside a guard on needs_tag", async () => {
+    // Every occurrence of the bare class string `card-needs-pill` must be
+    // preceded somewhere upstream by a mention of `needs_tag` so the element
+    // is gated.
     const res = await fetch(`${baseUrl}/app.js`);
     const body = await res.text();
-    const stripped = body
-      .replace(/card-needs-tag-icon/g, "")
-      .replace(/card-needs-tag-label/g, "");
-    // Find every occurrence of `card-needs-tag`. For each one, the nearest
-    // mention of `needs_tag` upstream (within the same source) must precede
-    // it — i.e. the element is inside a guard that names needs_tag.
     let i = 0;
     let foundAny = false;
     while (true) {
-      const idx = stripped.indexOf("card-needs-tag", i);
+      const idx = body.indexOf("card-needs-pill", i);
       if (idx === -1) break;
       foundAny = true;
-      const prefix = stripped.slice(0, idx);
+      const prefix = body.slice(0, idx);
       expect(prefix.includes("needs_tag")).toBe(true);
       i = idx + 1;
     }
@@ -211,15 +202,15 @@ describe("served Card source references card-needs-tag", () => {
   });
 
   it("served /app.js source emits a data-need attribute reachable for per-category CSS", async () => {
-    // Step 4's render contract: the element exposes the per-category key on
-    // the DOM (data-need=${...}) so step 5's CSS rules can address it.
+    // The element exposes the per-category key on the DOM (data-need=${...})
+    // so the CSS rules can address it.
     const res = await fetch(`${baseUrl}/app.js`);
     const body = await res.text();
     expect(/data-need\s*=/.test(body)).toBe(true);
   });
 });
 
-describe("served /styles.css defines .card-needs-tag and seven per-category rules", () => {
+describe("served /styles.css defines .card-needs-pill and seven per-category rules", () => {
   let handle;
   let baseUrl;
 
@@ -242,15 +233,15 @@ describe("served /styles.css defines .card-needs-tag and seven per-category rule
     "review-diff",
   ];
 
-  it("defines a base .card-needs-tag rule with at least one declaration", async () => {
+  it("defines a base .card-needs-pill rule with at least one declaration", async () => {
     const res = await fetch(`${baseUrl}/styles.css`);
     expect(res.status).toBe(200);
     const body = await res.text();
-    // Match a `.card-needs-tag` selector that is NOT followed by `[` (i.e. the
+    // Match a `.card-needs-pill` selector that is NOT followed by `[` (i.e. the
     // base rule, not a per-key attribute selector). The declaration block
     // between { and } must contain at least one declaration (non-whitespace,
     // semicolon-terminated or single).
-    const re = /\.card-needs-tag(?!\[|-)\s*\{([^}]*)\}/g;
+    const re = /\.card-needs-pill(?!\[|-)\s*\{([^}]*)\}/g;
     const blocks = [];
     let m;
     while ((m = re.exec(body)) !== null) blocks.push(m[1]);
@@ -260,14 +251,14 @@ describe("served /styles.css defines .card-needs-tag and seven per-category rule
   });
 
   for (const key of SEVEN_KEYS) {
-    it(`defines a per-category rule .card-needs-tag[data-need="${key}"] with at least one declaration`, async () => {
+    it(`defines a per-category rule .card-needs-pill[data-need="${key}"] with at least one declaration`, async () => {
       const res = await fetch(`${baseUrl}/styles.css`);
       const body = await res.text();
       // Build a regex that finds the per-key attribute-selector rule. Allow
       // single or double quotes around the value.
       const escapedKey = key.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
       const re = new RegExp(
-        `\\.card-needs-tag\\[\\s*data-need\\s*=\\s*["']${escapedKey}["']\\s*\\]\\s*\\{([^}]*)\\}`,
+        `\\.card-needs-pill\\[\\s*data-need\\s*=\\s*["']${escapedKey}["']\\s*\\]\\s*\\{([^}]*)\\}`,
         "g",
       );
       const blocks = [];
@@ -286,7 +277,7 @@ describe("served /styles.css defines .card-needs-tag and seven per-category rule
     const body = await res.text();
     // Pull the base block(s) declarations as a set of normalized "prop:value;"
     // strings so we can compare per-category rule contents against them.
-    const baseRe = /\.card-needs-tag(?!\[|-)\s*\{([^}]*)\}/g;
+    const baseRe = /\.card-needs-pill(?!\[|-)\s*\{([^}]*)\}/g;
     const baseDecls = new Set();
     let bm;
     while ((bm = baseRe.exec(body)) !== null) {
@@ -301,7 +292,7 @@ describe("served /styles.css defines .card-needs-tag and seven per-category rule
     for (const key of SEVEN_KEYS) {
       const escapedKey = key.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
       const perRe = new RegExp(
-        `\\.card-needs-tag\\[\\s*data-need\\s*=\\s*["']${escapedKey}["']\\s*\\]\\s*\\{([^}]*)\\}`,
+        `\\.card-needs-pill\\[\\s*data-need\\s*=\\s*["']${escapedKey}["']\\s*\\]\\s*\\{([^}]*)\\}`,
         "g",
       );
       let perBlock = null;

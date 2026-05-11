@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Claude Code · Status</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    html, body, #root { height: 100%; margin: 0; }
+    body { background: var(--tn-bg); }
+    * { box-sizing: border-box; }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="data.jsx"></script>
+  <script type="text/babel" src="shared.jsx"></script>
+  <script type="text/babel" src="var-mission.jsx"></script>
+
+  <script type="text/babel">
+    const { useMemo } = React;
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "anim": "normal",
+      "filterAttention": true,
+      "filterActive": true,
+      "filterDone": true,
+      "filterIdle": true,
+      "showRepo": true,
+      "showBranch": true,
+      "showSession": true,
+      "showDesktop": true,
+      "showElapsed": true
+    }/*EDITMODE-END*/;
+
+    function App() {
+      const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+      const events = useMemo(() => {
+        return FEED_EVENTS.filter(e => {
+          const t = STATUS_META[e.status].tone;
+          if ((t === 'attention' || t === 'danger') && !tweaks.filterAttention) return false;
+          if (t === 'active' && !tweaks.filterActive) return false;
+          if (t === 'success' && !tweaks.filterDone) return false;
+          if (t === 'neutral' && !tweaks.filterIdle) return false;
+          return true;
+        });
+      }, [tweaks.filterAttention, tweaks.filterActive, tweaks.filterDone, tweaks.filterIdle]);
+
+      const fields = {
+        repo: tweaks.showRepo,
+        branch: tweaks.showBranch,
+        session: tweaks.showSession,
+        desktop: tweaks.showDesktop,
+        elapsed: tweaks.showElapsed,
+      };
+      const anim = tweaks.anim !== 'off';
+
+      return (
+        <>
+          <VariationMission events={events} now={NOW} fields={fields} anim={anim} />
+
+          <TweaksPanel title="Tweaks">
+            <TweakSection label="Appearance">
+              <TweakRadio
+                label="Animation"
+                value={tweaks.anim}
+                onChange={(v) => setTweak('anim', v)}
+                options={[
+                  { value: 'off', label: 'Off' },
+                  { value: 'normal', label: 'On' },
+                ]}
+              />
+            </TweakSection>
+
+            <TweakSection label="Filters">
+              <TweakToggle label="Attention / blocked" value={tweaks.filterAttention} onChange={(v) => setTweak('filterAttention', v)} />
+              <TweakToggle label="Active (working / tests / reviewing)" value={tweaks.filterActive} onChange={(v) => setTweak('filterActive', v)} />
+              <TweakToggle label="Completed" value={tweaks.filterDone} onChange={(v) => setTweak('filterDone', v)} />
+              <TweakToggle label="Idle" value={tweaks.filterIdle} onChange={(v) => setTweak('filterIdle', v)} />
+            </TweakSection>
+
+            <TweakSection label="Metadata fields">
+              <TweakToggle label="Repo" value={tweaks.showRepo} onChange={(v) => setTweak('showRepo', v)} />
+              <TweakToggle label="Branch" value={tweaks.showBranch} onChange={(v) => setTweak('showBranch', v)} />
+              <TweakToggle label="Tmux/cmux session" value={tweaks.showSession} onChange={(v) => setTweak('showSession', v)} />
+              <TweakToggle label="Desktop (aerospace)" value={tweaks.showDesktop} onChange={(v) => setTweak('showDesktop', v)} />
+              <TweakToggle label="Elapsed time" value={tweaks.showElapsed} onChange={(v) => setTweak('showElapsed', v)} />
+            </TweakSection>
+          </TweaksPanel>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
