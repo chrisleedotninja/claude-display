@@ -76,45 +76,127 @@ body {
 }
 
 .card {
-  padding: 1rem 1.25rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
+  display: grid;
+  grid-template-columns: 88px 1fr 240px;
+  overflow: hidden;
+}
+
+/* Rail column — tone-colored background via per-card --accent variable */
+.card-rail {
+  background: var(--accent, var(--tn-faint));
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0.75rem 0;
+}
+
+/* Glyph chip: 28×28px translucent dark chip hosting the status icon */
+.card-rail-chip {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: center;
+  color: #fff;
+}
+
+/* Body column */
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  min-width: 0;
+}
+
+/* Head row: id | branch | subcount | time */
+.card-body-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Instance id: cyan mono 13px */
+.card-body-id {
+  font-family: var(--font-mono);
+  color: var(--tn-cyan);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+/* Subagent count: purple mono */
+.card-body-subcount {
+  font-family: var(--font-mono);
+  color: var(--tn-purple);
+  font-size: 13px;
+}
+
+/* Relative time: faint mono 11px, pushed to right */
+.card-body-time {
+  font-family: var(--font-mono);
+  color: var(--tn-faint);
+  font-size: 11px;
+  margin-left: auto;
+}
+
+/* Title: 15px --tn-fg */
+.card-body-title {
+  font-size: 15px;
+  color: var(--tn-fg);
+  font-weight: 500;
+}
+
+/* Meta column — 240px, key/value rows */
+.card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.75rem;
+  background: var(--tn-bg-dark);
+  border-left: 1px solid var(--tn-rule);
+  min-width: 0;
+}
+
+/* Key/value row within meta column */
+.card-meta-row {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Meta field text: --tn-fg 500 weight */
+.card-meta-repo,
+.card-meta-session,
+.card-meta-desktop,
+.card-meta-elapsed {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--tn-fg);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Branch: shown in body head row */
+.card-meta-branch {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--tn-muted);
+}
+
+/* Elapsed when shown in body */
+.card-meta-elapsed {
+  font-size: 12px;
+  color: var(--tn-muted);
 }
 
 .card-id {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.card-repo {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--fg);
-  font-size: 13px;
-}
-
-.card-branch {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.card-session-label {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.card-desktop {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.card-elapsed {
   color: var(--muted);
   font-size: 13px;
 }
@@ -164,9 +246,8 @@ body {
  * never inherit either the bar or the pulse animation.
  */
 .card.is-attention {
-  /* attention-rail along the left edge, in the per-status color */
-  border-left: 4px solid var(--card-status-color);
-  padding-left: calc(1.25rem - 3px);
+  /* attention ring and glow — rail background color is now the card-rail column */
+  border-color: var(--card-status-color);
   animation: attention-pulse 2.4s ease-in-out infinite;
 }
 
@@ -383,73 +464,62 @@ body {
   border-color: var(--c-active);
 }
 
-/* "Needs from you" tag (chore [038]). Rendered only on attention-state cards
- * whose record carries a recognized `needs` wire-enum value (one of the seven
- * keys in needs-tokens.js). The base rule provides shared layout/typography;
- * each per-category attribute selector below applies a visually distinct
- * accent so the seven categories are unambiguously different at a glance,
- * satisfying AC2. Per-category icons are single Unicode glyphs supplied by
- * NEEDS_TOKENS[key].icon — no webfont/icon-font dependency, matching
- * docs/decisions/0001-heartbeat-stack.md. */
-.card-needs-tag {
+/* "Needs from you" pill (chore [038], renamed [050]). Rendered only on
+ * attention-state cards whose record carries a recognized `needs` wire-enum
+ * value (one of the seven keys in needs-tokens.js). The base rule provides
+ * shared layout/typography; each per-category attribute selector below applies
+ * a visually distinct accent, using --accent and --accent-bg per-card variables.
+ * Per-category icons are single Unicode glyphs — no webfont dependency. */
+.card-needs-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
   padding: 0.15rem 0.55rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent, var(--border));
   border-radius: 999px;
   font-size: 12px;
-  color: var(--fg);
-  background: rgba(255, 255, 255, 0.03);
+  color: var(--accent, var(--fg));
+  background: var(--accent-bg, rgba(255, 255, 255, 0.03));
 }
 
-.card-needs-tag-icon {
-  font-size: 13px;
-  line-height: 1;
-}
-
-.card-needs-tag-label {
-  white-space: nowrap;
-}
-
-.card-needs-tag[data-need="approve-tool"] {
+.card-needs-pill[data-need="approve-tool"] {
   color: #9ece6a;
   border-color: #9ece6a;
   background: rgba(158, 206, 106, 0.08);
 }
 
-.card-needs-tag[data-need="answer-question"] {
-  color: var(--accent);
-  border-color: var(--accent);
+.card-needs-pill[data-need="answer-question"] {
+  color: var(--tn-blue);
+  border-color: var(--tn-blue);
   background: rgba(122, 162, 247, 0.1);
 }
 
-.card-needs-tag[data-need="provide-input"] {
+.card-needs-pill[data-need="provide-input"] {
   color: #bb9af7;
   border-color: #bb9af7;
   background: rgba(187, 154, 247, 0.08);
 }
 
-.card-needs-tag[data-need="pick-option"] {
+.card-needs-pill[data-need="pick-option"] {
   color: #7dcfff;
   border-color: #7dcfff;
   background: rgba(125, 207, 255, 0.08);
 }
 
-.card-needs-tag[data-need="confirm-destructive"] {
+.card-needs-pill[data-need="confirm-destructive"] {
   color: #f7768e;
   border-color: #f7768e;
   background: rgba(247, 118, 142, 0.1);
   font-weight: 600;
 }
 
-.card-needs-tag[data-need="resolve-conflict"] {
+.card-needs-pill[data-need="resolve-conflict"] {
   color: #ff9e64;
   border-color: #ff9e64;
   background: rgba(255, 158, 100, 0.08);
 }
 
-.card-needs-tag[data-need="review-diff"] {
+.card-needs-pill[data-need="review-diff"] {
   color: #e0af68;
   border-color: #e0af68;
   background: rgba(224, 175, 104, 0.08);
