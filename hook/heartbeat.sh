@@ -184,10 +184,21 @@ if [ -n "$parent_tool_use_id" ]; then
   else
     sub_status="$status"
   fi
+  # Mirror the top-level branch's attention-state filter: `needs` is attached
+  # only when the resolved subagent status is one of approval/waiting/blocked
+  # (ADR 0003). The override has no power to bypass this filter.
+  sub_needs_for_payload=""
+  case "$sub_status" in
+    approval|waiting|blocked) sub_needs_for_payload="$needs" ;;
+  esac
   body="$(bun -e '
-    const [id, id_raw, parent_id, status] = process.argv.slice(1);
-    process.stdout.write(JSON.stringify({ id, id_raw, parent_id, status }));
-  ' "$id" "$id_raw" "$parent_id" "$sub_status")"
+    const [id, id_raw, parent_id, status, needs] = process.argv.slice(1);
+    const payload = { id, id_raw, parent_id, status };
+    if (typeof needs === "string" && needs.length > 0) {
+      payload.needs = needs;
+    }
+    process.stdout.write(JSON.stringify(payload));
+  ' "$id" "$id_raw" "$parent_id" "$sub_status" "$sub_needs_for_payload")"
 else
   # Top-level fire — capture full card metadata (elapsed-time anchor +
   # aerospace desktop) before building the payload.

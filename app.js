@@ -101,7 +101,18 @@ export function cardsFromState(records, now = Date.now()) {
         }
       }
       if (Array.isArray(r.subagents)) {
-        card.subagents = r.subagents.map((s) => ({ id: s.id, status: s.status }));
+        card.subagents = r.subagents.map((s) => {
+          const sub = { id: s.id, status: s.status };
+          // Same attention-state + allow-list gate as the top-level projection
+          // below: only attention-state subagents carry the tag, and only when
+          // `needs` resolves to a recognized wire-enum entry. The frozen entry
+          // is stored by identity so consumers compare with `===`.
+          if (isAttentionStatus(s.status)) {
+            const tag = tokensForNeed(s.needs);
+            if (tag !== null) sub.needs_tag = tag;
+          }
+          return sub;
+        });
       }
       // Optional `needs_tag` projection: only attention-state cards (chore [019]'s
       // ATTENTION_STATUSES) carry the tag, and only when `needs` resolves to a
@@ -334,8 +345,9 @@ function StatusGlyph({ status, anim, size = 16 }) {
 // select the correct connector. A `--sub-accent` CSS custom property on the
 // row element carries the tone color for the pill background and chip tinting.
 // See chore [052].
-function SubagentCard({ id, status, color, isLast, anim }) {
+function SubagentCard({ id, status, color, isLast, anim, needs_tag }) {
   const connector = isLast ? "└─" : "├─";
+  const needKey = needKeyFor(needs_tag);
   return html`
     <div class="ms-sub" style=${{ "--sub-accent": color, "--sub-bg": `${color}22` }}>
       <span class="connector">${connector}</span>
@@ -345,6 +357,11 @@ function SubagentCard({ id, status, color, isLast, anim }) {
       <span class="sub-label">${status.toUpperCase()}</span>
       <div class="sub-body">
         <span class="sub-name">${id}</span>
+        ${needs_tag
+          ? html`<div class="card-needs-pill" data-need=${needKey}>
+              ⚑ ${needs_tag.label}
+            </div>`
+          : null}
       </div>
     </div>
   `;
@@ -427,6 +444,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
           color=${subColor}
           isLast=${i === subagents.length - 1}
           anim=${anim}
+          needs_tag=${s.needs_tag}
         />`;
       })}
     </div>
