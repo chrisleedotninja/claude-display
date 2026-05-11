@@ -144,7 +144,9 @@ describe("styles.css token layer — all five token-layer keyframes are defined"
     expect(body).toContain("@keyframes shimmer");
   });
 
-  it("retains existing @keyframes attention-pulse", () => {
-    expect(body).toContain("@keyframes attention-pulse");
+  it("does NOT retain @keyframes attention-pulse (retired by chore [052] ring+glow treatment)", () => {
+    // attention-pulse was the old left-border sweeping animation. Chore [052]
+    // replaces it with a static box-shadow ring+glow — no @keyframes needed.
+    expect(body).not.toContain("@keyframes attention-pulse");
   });
 });

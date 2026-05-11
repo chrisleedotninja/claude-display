@@ -238,26 +238,17 @@ body {
   border-left: 3px solid var(--accent);
 }
 
-/* Attention-state visual loudness (chore [019]). Cards whose status is in the
- * attention set (approval / waiting / blocked) carry the .is-attention class
- * from app.js. The colored bar along the card's left edge uses the same
- * per-status color the [018] slice already exposes via --card-status-color.
- * All such treatment is scoped under .card.is-attention so non-attention cards
- * never inherit either the bar or the pulse animation.
+/* Attention-state visual loudness (chore [019], updated [052]). Cards whose
+ * status is in the attention set (approval / waiting / blocked) carry the
+ * .is-attention class from app.js. The ring + glow shadow uses the per-card
+ * --accent variable (which mirrors --card-status-color) so each attention
+ * status gets its own tone-colored treatment. No border-left rail, no
+ * animation shorthand — the visual indicator is purely structural.
+ * All treatment is scoped under .card.is-attention.
  */
 .card.is-attention {
-  /* attention ring and glow — rail background color is now the card-rail column */
   border-color: var(--card-status-color);
-  animation: attention-pulse 2.4s ease-in-out infinite;
-}
-
-@keyframes attention-pulse {
-  0%, 100% {
-    box-shadow: -1px 0 0 0 var(--card-status-color);
-  }
-  50% {
-    box-shadow: -6px 0 12px -2px var(--card-status-color);
-  }
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 24px -10px var(--accent);
 }
 
 /* Token-layer animation keyframes (chore [048]). Five standard keyframes
@@ -277,7 +268,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .card.is-attention {
-    animation: none;
+    box-shadow: none;
   }
 }
 
@@ -523,6 +514,101 @@ body {
   color: #e0af68;
   border-color: #e0af68;
   background: rgba(224, 175, 104, 0.08);
+}
+
+/* Subagent nesting — ms-group/ms-subs/ms-sub structure (chore [052]).
+ * A parent card with subagents is wrapped in .ms-group.has-children; the
+ * parent card uses border-radius 8px 8px 0 0 (inline from app.js) and the
+ * .ms-subs panel is visually attached below with a shared border-radius.
+ * Each .ms-sub row uses a three-column grid: connector glyph, tone-tinted
+ * 22×22px glyph pill, and sub-body (label + instance id). The connector
+ * column uses the ├─ / └─ Unicode glyphs from app.js. */
+
+.ms-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.ms-subs {
+  background: var(--tn-bg-dark);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  padding: 0.4rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Each subagent row: connector | glyph-pill | sub-label | sub-body */
+.ms-sub {
+  display: grid;
+  grid-template-columns: 1.5rem 1.75rem auto 1fr;
+  align-items: center;
+  gap: 0.35rem;
+  padding-left: 0.25rem;
+  font-size: 12px;
+}
+
+/* Tree connector glyph (├─ or └─) */
+.connector {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--tn-faint);
+  flex-shrink: 0;
+}
+
+/* 22×22px tone-tinted pill with the status SVG glyph */
+.glyph-pill {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--sub-bg, rgba(255, 255, 255, 0.06));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sub-accent, var(--tn-muted));
+  flex-shrink: 0;
+}
+
+/* Status label (uppercased in app.js) */
+.sub-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--sub-accent, var(--tn-muted));
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* Sub-body: instance id + optional needs */
+.sub-body {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+/* Instance id in the sub-body */
+.sub-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--tn-cyan);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Needs chip inside a subagent row */
+.sub-needs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 10px;
+  background: var(--sub-bg, rgba(255, 255, 255, 0.06));
+  color: var(--sub-accent, var(--tn-muted));
+  border: 1px solid var(--sub-accent, var(--tn-rule));
 }
 
 /* Header strip (chore [049]). Two-column flex layout with the mono dashboard
