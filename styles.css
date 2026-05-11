@@ -172,6 +172,7 @@ body {
 .card-meta-repo,
 .card-meta-session,
 .card-meta-desktop,
+.card-meta-title,
 .card-meta-elapsed {
   font-family: var(--font-mono);
   font-size: 12px;
