@@ -338,6 +338,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
   const needKey = needKeyFor(needs_tag);
   const className = isAttentionStatus(status) ? "card is-attention" : "card";
+  const subagentCount = subagents && subagents.length > 0 ? subagents.length : 0;
   const nested =
     subagents && subagents.length > 0
       ? html`
@@ -350,23 +351,34 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
     <div
       class=${className}
       data-status=${status}
-      style=${`--card-status-color: ${color}; view-transition-name: card-${id}`}
+      style=${`--card-status-color: ${color}; --accent: ${color}; view-transition-name: card-${id}`}
     >
-      <div class="card-id">${id}</div>
-      ${repo ? html`<div class="card-repo">${repo}</div>` : null}
-      ${branch ? html`<div class="card-branch">${branch}</div>` : null}
-      ${hasLabel ? html`<div class="card-session-label">${session_label}</div>` : null}
-      ${hasDesktop ? html`<div class="card-desktop">${desktop}</div>` : null}
-      ${hasElapsed ? html`<div class="card-elapsed">${elapsed}</div>` : null}
-      ${needs_tag
-        ? html`<div class="card-needs-tag" data-need=${needKey}>
-            <span class="card-needs-tag-icon">${needs_tag.icon}</span>
-            <span class="card-needs-tag-label">${needs_tag.label}</span>
-          </div>`
-        : null}
-      <span class="card-status-icon"><${StatusGlyph} status=${status} anim=${anim} size=${16} /></span>
-      <div class="card-status">${label}</div>
-      ${nested}
+      <div class="card-rail">
+        <span class="card-rail-chip">
+          <${StatusGlyph} status=${status} anim=${anim} size=${16} />
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-body-head">
+          <span class="card-body-id">${id}</span>
+          ${branch ? html`<span class="card-meta-branch">${branch}</span>` : null}
+          ${subagentCount > 0 ? html`<span class="card-body-subcount">${subagentCount}</span>` : null}
+          ${hasElapsed ? html`<span class="card-body-time">${elapsed}</span>` : null}
+        </div>
+        <div class="card-body-title">${label}</div>
+        ${hasElapsed ? html`<div class="card-meta-elapsed">${elapsed}</div>` : null}
+        ${needs_tag
+          ? html`<div class="card-needs-pill" data-need=${needKey}>
+              ⚑ ${needs_tag.label}
+            </div>`
+          : null}
+        ${nested}
+      </div>
+      <div class="card-meta">
+        ${repo ? html`<div class="card-meta-row"><span class="card-meta-repo">${repo}</span></div>` : null}
+        ${hasLabel ? html`<div class="card-meta-row"><span class="card-meta-session">${session_label}</span></div>` : null}
+        ${hasDesktop ? html`<div class="card-meta-row"><span class="card-meta-desktop">${desktop}</span></div>` : null}
+      </div>
     </div>
   `;
 }
