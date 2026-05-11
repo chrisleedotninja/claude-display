@@ -318,12 +318,25 @@ function StatusGlyph({ status, anim, size = 16 }) {
   }
 }
 
-function SubagentCard({ id, status, anim }) {
+// SubagentCard renders one row in the .ms-subs panel. Each row uses a grid
+// layout with three columns: connector glyph, tone-tinted glyph pill with
+// status SVG, and the sub-body (label + instance id). The connector is ├─ for
+// all rows except the last, which uses └─. The caller passes `isLast` to
+// select the correct connector. A `--sub-accent` CSS custom property on the
+// row element carries the tone color for the pill background and chip tinting.
+// See chore [052].
+function SubagentCard({ id, status, color, isLast, anim }) {
+  const connector = isLast ? "└─" : "├─";
   return html`
-    <div class="card subagent-card">
-      <div class="card-id">${id}</div>
-      <span class="card-status-icon"><${StatusGlyph} status=${status} anim=${anim} size=${12} /></span>
-      <div class="card-status">${status}</div>
+    <div class="ms-sub" style=${{ "--sub-accent": color, "--sub-bg": `${color}22` }}>
+      <span class="connector">${connector}</span>
+      <span class="glyph-pill">
+        <${StatusGlyph} status=${status} anim=${anim} size=${12} />
+      </span>
+      <span class="sub-label">${status.toUpperCase()}</span>
+      <div class="sub-body">
+        <span class="sub-name">${id}</span>
+      </div>
     </div>
   `;
 }
@@ -349,19 +362,13 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   const needKey = needKeyFor(needs_tag);
   const className = isAttentionStatus(status) ? "card is-attention" : "card";
   const subagentCount = subagents && subagents.length > 0 ? subagents.length : 0;
-  const nested =
-    subagents && subagents.length > 0
-      ? html`
-          <div class="subagents">
-            ${subagents.map((s) => html`<${SubagentCard} id=${s.id} status=${s.status} anim=${anim} />`)}
-          </div>
-        `
-      : null;
-  return html`
+  const hasSubagents = subagentCount > 0;
+
+  const parentCard = html`
     <div
       class=${className}
       data-status=${status}
-      style=${`--card-status-color: ${color}; --accent: ${color}; view-transition-name: card-${id}`}
+      style=${`--card-status-color: ${color}; --accent: ${color}; view-transition-name: card-${id}${hasSubagents ? "; border-radius: 8px 8px 0 0" : ""}`}
     >
       <div class="card-rail">
         <span class="card-rail-chip">
@@ -382,13 +389,38 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
               ⚑ ${needs_tag.label}
             </div>`
           : null}
-        ${nested}
       </div>
       <div class="card-meta">
         ${repo ? html`<div class="card-meta-row"><span class="card-meta-repo">${repo}</span></div>` : null}
         ${hasLabel ? html`<div class="card-meta-row"><span class="card-meta-session">${session_label}</span></div>` : null}
         ${hasDesktop ? html`<div class="card-meta-row"><span class="card-meta-desktop">${desktop}</span></div>` : null}
       </div>
+    </div>
+  `;
+
+  if (!hasSubagents) return parentCard;
+
+  // Wrap in .ms-group with a .ms-subs panel below when subagents are present.
+  const subsPanel = html`
+    <div class="ms-subs">
+      ${subagents.map((s, i) => {
+        const subColor = tokensForStatus(s.status).color;
+        return html`<${SubagentCard}
+          key=${s.id}
+          id=${s.id}
+          status=${s.status}
+          color=${subColor}
+          isLast=${i === subagents.length - 1}
+          anim=${anim}
+        />`;
+      })}
+    </div>
+  `;
+
+  return html`
+    <div class="ms-group has-children">
+      ${parentCard}
+      ${subsPanel}
     </div>
   `;
 }
