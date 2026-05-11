@@ -187,12 +187,23 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         if (typeof payload.parent_id === "string" && state.has(payload.parent_id)) {
           const parent = state.get(payload.parent_id);
           const now = Date.now();
-          parent.subagents.set(payload.id, {
+          const subRecord = {
             id: payload.id,
             id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
             status: payload.status,
             last_event_at: now,
-          });
+          };
+          // Optional `needs`: silent-drop on any invalid value (wrong type,
+          // empty string, value outside the frozen allow-list). Identical
+          // posture to the top-level path's `needs` block below — the
+          // record simply has no `needs` key in that case rather than a 4xx.
+          if (
+            typeof payload.needs === "string" &&
+            ALLOWED_NEEDS.has(payload.needs)
+          ) {
+            subRecord.needs = payload.needs;
+          }
+          parent.subagents.set(payload.id, subRecord);
           // Bump the parent's own `last_event_at` so the most-recent-first
           // sort in `cardsFromState` (chore [015]) ranks the parent at the
           // top, carrying its nested subagents along (chore [030]).
