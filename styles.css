@@ -151,6 +151,22 @@ body {
   font-weight: 500;
 }
 
+/* Detail: narrative content under the title (chore [062]). Mono font and a
+ * Tokyo-Night-Storm body-text color token, with a multi-line CSS clamp so a
+ * long override (the spec calls out a 5,000-character ceiling) never blows
+ * up the card height. The single-line ellipsis idiom used by .card-meta-*
+ * is the wrong pattern for body-column narrative content; the multi-line
+ * clamp is the right one. */
+.card-body-detail {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--tn-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* Meta column — 240px, key/value rows */
 .card-meta {
   display: flex;
@@ -172,6 +188,8 @@ body {
 .card-meta-repo,
 .card-meta-session,
 .card-meta-desktop,
+.card-meta-instance,
+.card-meta-title,
 .card-meta-elapsed {
   font-family: var(--font-mono);
   font-size: 12px;

@@ -184,10 +184,21 @@ if [ -n "$parent_tool_use_id" ]; then
   else
     sub_status="$status"
   fi
+  # Mirror the top-level branch's attention-state filter: `needs` is attached
+  # only when the resolved subagent status is one of approval/waiting/blocked
+  # (ADR 0003). The override has no power to bypass this filter.
+  sub_needs_for_payload=""
+  case "$sub_status" in
+    approval|waiting|blocked) sub_needs_for_payload="$needs" ;;
+  esac
   body="$(bun -e '
-    const [id, id_raw, parent_id, status] = process.argv.slice(1);
-    process.stdout.write(JSON.stringify({ id, id_raw, parent_id, status }));
-  ' "$id" "$id_raw" "$parent_id" "$sub_status")"
+    const [id, id_raw, parent_id, status, needs] = process.argv.slice(1);
+    const payload = { id, id_raw, parent_id, status };
+    if (typeof needs === "string" && needs.length > 0) {
+      payload.needs = needs;
+    }
+    process.stdout.write(JSON.stringify(payload));
+  ' "$id" "$id_raw" "$parent_id" "$sub_status" "$sub_needs_for_payload")"
 else
   # Top-level fire — capture full card metadata (elapsed-time anchor +
   # aerospace desktop) before building the payload.
@@ -224,8 +235,53 @@ else
     approval|waiting|blocked) needs_for_payload="$needs" ;;
   esac
 
+  # Capture the operator-supplied instance label from the environment. The
+  # env var is the sole source — no fallback chain. Empty / unset falls
+  # through to the conditional-assign guard below (omit the field).
+  instance="${CLAUDE_DISPLAY_INSTANCE:-}"
+
+  # Derive the per-event card `title` (parent spec [057] / chore [061]).
+  # Order, mirroring the locked authoring scheme:
+  #   1. CLAUDE_DISPLAY_TITLE, when set to a non-empty AND non-whitespace-only
+  #      string, wins verbatim on every event type — including non-Notification
+  #      events that have no auto-derivation source. Unlike `needs`, there is
+  #      no per-status gate; the override flows through to every top-level
+  #      fire. The whitespace-only check is the spec's twist over the existing
+  #      `needs` / `desktop` overrides — a whitespace-only override silently
+  #      falls through rather than winning as an opaque blank string.
+  #   2. Otherwise, the per-event auto-derivation table applies. Only one
+  #      row auto-emits a value: Notification whose `message` contains
+  #      `permission` (case-insensitive) → the verbatim message (original
+  #      case preserved, NOT lower_message). Reuses the same
+  #      `lower_message` substring discriminator already feeding the
+  #      `needs="approve-tool"` auto-derivation above (ADR 0003) so the two
+  #      fields agree without extra logic.
+  title=""
+  title_override="${CLAUDE_DISPLAY_TITLE:-}"
+  # Strip leading/trailing whitespace so a value of e.g. "   " collapses to
+  # the empty string and falls through to the auto-derivation branch.
+  title_override_trimmed="$(printf '%s' "$title_override" | tr -d '[:space:]')"
+  if [ -n "$title_override_trimmed" ]; then
+    title="$title_override"
+  elif [ "$hook_event_name" = "Notification" ]; then
+    case "$lower_message" in
+      *permission*) title="$message" ;;
+    esac
+  fi
+
+  # Capture the CLAUDE_DISPLAY_DETAIL override at fire time. Trim leading and
+  # trailing whitespace so a whitespace-only override falls through as if
+  # unset (matches the spec's "non-whitespace-only" requirement); the
+  # downstream `typeof X === "string" && X.length > 0` guard in the bun -e
+  # JSON-build step then drops the empty result. Mirrors the override-only
+  # authoring pattern of `instance` (sibling chore [060]); divergence from
+  # that precedent is the trim, mirroring `title` (chore [061]).
+  detail="${CLAUDE_DISPLAY_DETAIL:-}"
+  detail="${detail#"${detail%%[![:space:]]*}"}"
+  detail="${detail%"${detail##*[![:space:]]}"}"
+
   body="$(bun -e '
-    const [id, id_raw, status, repo, branch, session_label, desktop, event_at, needs] = process.argv.slice(1);
+    const [id, id_raw, status, repo, branch, session_label, desktop, event_at, needs, instance, title, detail] = process.argv.slice(1);
     const payload = { id, id_raw, status, repo, branch, event_at: Number(event_at) };
     if (typeof session_label === "string" && session_label.length > 0) {
       payload.session_label = session_label;
@@ -236,8 +292,17 @@ else
     if (typeof needs === "string" && needs.length > 0) {
       payload.needs = needs;
     }
+    if (typeof instance === "string" && instance.length > 0) {
+      payload.instance = instance;
+    }
+    if (typeof title === "string" && title.length > 0) {
+      payload.title = title;
+    }
+    if (typeof detail === "string" && detail.length > 0) {
+      payload.detail = detail;
+    }
     process.stdout.write(JSON.stringify(payload));
-  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at" "$needs_for_payload")"
+  ' "$id" "$id_raw" "$status" "$repo" "$branch" "$session_label" "$desktop" "$event_at" "$needs_for_payload" "$instance" "$title" "$detail")"
 fi
 
 curl --silent --show-error \
