@@ -17,6 +17,16 @@ import { NEEDS_TOKENS, tokensForNeed } from "./needs-tokens.js";
 
 const html = htm.bind(h);
 
+// Pure helper: compute the opacity for a card at position `idx` in a feed of
+// `total` cards. Newest card (idx=0) renders at full opacity (1.0); oldest
+// (idx=total-1) renders at 0.55. The ramp is linear: opacity decreases by
+// 0.45 across the full feed. Edge case: when total===1, returns 1 so a single
+// card always renders fully opaque. See chore [052].
+export function dimRamp(idx, total) {
+  if (total <= 1) return 1;
+  return 1 - (idx / (total - 1)) * 0.45;
+}
+
 // Format a duration in milliseconds as a human-friendly string in the
 // largest integer unit that fits: `Ns` for [0, 60s), `Nm` for [60s, 60m),
 // `Nh` for [60m, ∞). Floors within each unit. Negative inputs render as the
@@ -390,23 +400,24 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
       : html`
           <div class="cards">
             ${cards.map(
-              (c) =>
-                html`<${Card}
-                  key=${c.id}
-                  id=${c.id}
-                  status=${c.status}
-                  color=${c.color}
-                  icon=${c.icon}
-                  label=${c.label}
-                  repo=${c.repo}
-                  branch=${c.branch}
-                  session_label=${c.session_label}
-                  desktop=${c.desktop}
-                  elapsed=${c.elapsed}
-                  subagents=${c.subagents}
-                  needs_tag=${c.needs_tag}
-                  anim=${anim}
-                />`,
+              (c, i) =>
+                html`<div key=${c.id} style=${{ opacity: dimRamp(i, cards.length) }}>
+                  <${Card}
+                    id=${c.id}
+                    status=${c.status}
+                    color=${c.color}
+                    icon=${c.icon}
+                    label=${c.label}
+                    repo=${c.repo}
+                    branch=${c.branch}
+                    session_label=${c.session_label}
+                    desktop=${c.desktop}
+                    elapsed=${c.elapsed}
+                    subagents=${c.subagents}
+                    needs_tag=${c.needs_tag}
+                    anim=${anim}
+                  />
+                </div>`,
             )}
           </div>
         `;
