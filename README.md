@@ -1,6 +1,6 @@
 # claude-display
 
-A localhost-only status board for running Claude Code sessions, styled in the Tokyo Night Storm palette. Each session reports its latest status to a Bun server via a hook; the dashboard renders one card per session, drawn from an eight-value status taxonomy with a visually loud treatment for attention states (`approval`, `waiting`, `blocked`) and a "needs from you" tag naming the specific ask. Cards use a three-column rail/body/meta layout with SVG status glyphs, a header strip, and a live stats strip. Subagents nest under their parent card; the most-recently-updated card bubbles to the top; older cards dim via an opacity ramp. Live updates arrive over SSE so no manual refresh is needed. A Tweaks panel filters cards by tone group and toggles per-card metadata fields, with selections persisted across reloads. Single-file Bun server, no `node_modules` at runtime, no build step.
+A localhost-only status board for running Claude Code sessions, styled in the Tokyo Night Storm palette. Each session reports its latest status to a Bun server via a hook; the dashboard renders one card per session, drawn from an eight-value status taxonomy with a visually loud treatment for attention states (`approval`, `waiting`, `blocked`) and a "needs from you" tag naming the specific ask. Cards use a three-column rail/body/meta layout with SVG status glyphs, a header strip, and a live stats strip. Per-card narrative fields — operator-supplied instance name, a one-line title (auto-derived from `Notification` permission prompts), and a one-or-two-sentence detail — make a card answer "what is this agent doing or asking for," not just "where is it and what state is it in." Subagents nest under their parent card and carry their own attention-state needs pill; the most-recently-updated card bubbles to the top; older cards dim via an opacity ramp. Live updates arrive over SSE so no manual refresh is needed. A Tweaks panel filters cards by tone group and toggles per-card metadata fields, with selections persisted across reloads. Single-file Bun server, no `node_modules` at runtime, no build step.
 
 ## Quickstart
 
@@ -77,7 +77,7 @@ After `bun run start`, open `http://127.0.0.1:7878/` in a browser. The page rend
 
 ## Endpoints
 
-- `POST /events` — record an event. Body: JSON `{ "id": "<8-char hash>", "id_raw": "<host:pane:cwd>", "status": "<status>", … }`; optional fields include `event_at` (epoch ms), `repo`, `branch`, `session_label`, `desktop`, `parent_id` (for subagent events), and `needs` (one of the seven values from ADR 0003, only meaningful on attention-state events). Status values outside the eight-value enum collapse to `idle`; needs values outside the seven-value allow-list drop silently. Responds `202` on success, `400` on missing or malformed required fields.
+- `POST /events` — record an event. Body: JSON `{ "id": "<8-char hash>", "id_raw": "<host:pane:cwd>", "status": "<status>", … }`; optional fields include `event_at` (epoch ms), `repo`, `branch`, `session_label`, `desktop`, `instance`, `title`, `detail`, `parent_id` (for subagent events), and `needs` (one of the seven values from ADR 0003, only meaningful on attention-state events; honored on subagent events with the same allow-list). Status values outside the eight-value enum collapse to `idle`; needs values outside the seven-value allow-list drop silently. The narrative string fields (`instance`, `title`, `detail`) are stored verbatim when non-empty strings; empty, absent, or non-string values are silently dropped (no length cap on `detail` — truncation is the dashboard's concern). Responds `202` on success, `400` on missing or malformed required fields.
 - `GET /api/state` — read the current set of session records as a JSON array. Empty array when no events have been recorded.
 - `GET /events/stream` — Server-Sent Events channel that broadcasts each accepted record as it lands, in insertion order. The dashboard subscribes after its initial `/api/state` fetch.
 
@@ -138,6 +138,15 @@ The hook also tags attention-state events with a `needs` category drawn from the
 env CLAUDE_DISPLAY_NEEDS=review-diff CLAUDE_DISPLAY_STATUS=blocked claude
 ```
 
-A valid `CLAUDE_DISPLAY_NEEDS` wins verbatim over the auto-derivation; an unset, empty, or invalid value silently falls through. The `needs` field is attached only on attention-state events — events whose resolved status is one of `approval`, `waiting`, or `blocked`. On any other status (`working`, `tests`, `reviewing`, `success`, `idle`) the hook emits no `needs` field, even with a valid `CLAUDE_DISPLAY_NEEDS` set.
+A valid `CLAUDE_DISPLAY_NEEDS` wins verbatim over the auto-derivation; an unset, empty, or invalid value silently falls through. The `needs` field is attached only on attention-state events — events whose resolved status is one of `approval`, `waiting`, or `blocked`. On any other status (`working`, `tests`, `reviewing`, `success`, `idle`) the hook emits no `needs` field, even with a valid `CLAUDE_DISPLAY_NEEDS` set. The same attention-state filter and seven-value allow-list also apply to subagent events, so a blocked subagent row carries its own `needs` pill independent of its parent's.
+
+The hook also forwards three optional narrative strings the dashboard renders directly on the card — an instance label, a one-line title, and a one-or-two-sentence detail. `CLAUDE_DISPLAY_INSTANCE` is the operator-supplied per-session display name (e.g. `cc-payments`), distinct from the 8-character session id. `CLAUDE_DISPLAY_TITLE` is a one-line headline of what the agent is doing or asking for; when unset, the hook auto-derives it from a `Notification` whose message contains "permission" (case-insensitive, reusing the same discriminator as `approve-tool`). `CLAUDE_DISPLAY_DETAIL` is a one-or-two-sentence elaboration shown under the title and is override-only (no auto-derivation source). All three follow the same posture as `CLAUDE_DISPLAY_NEEDS`: a valid value wins verbatim, an unset / empty / whitespace-only value silently falls through, and an absent field renders no element on the card (no placeholder):
+
+```
+env CLAUDE_DISPLAY_INSTANCE=cc-payments \
+    CLAUDE_DISPLAY_TITLE="Approve: rm -rf node_modules" \
+    CLAUDE_DISPLAY_DETAIL="Wants to nuke node_modules to resolve a peer-dep conflict in @stripe/react-stripe-js." \
+    claude
+```
 
 If the server is not running, the hook exits cleanly within ~1s and never blocks or errors the session.
