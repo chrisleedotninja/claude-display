@@ -385,16 +385,16 @@ describe("Card body is unaffected by field-toggle wiring (Step 7, AC4)", () => {
     expect(inner.includes("toggleVisibleField")).toBe(false);
   });
 
-  it("Card's body still contains the five conditional card-* div-class strings (regression guard for chore [003])", async () => {
+  it("Card's body still contains the five conditional card-meta-* div-class strings (regression guard for chore [003])", async () => {
     const body = await (await fetch(`${baseUrl}/app.js`)).text();
     const openIdx = findFunctionBodyOpenBrace(body, "Card");
     const inner = extractBalancedBlock(body, openIdx);
     for (const cls of [
-      "card-repo",
-      "card-branch",
-      "card-session-label",
-      "card-desktop",
-      "card-elapsed",
+      "card-meta-repo",
+      "card-meta-branch",
+      "card-meta-session",
+      "card-meta-desktop",
+      "card-meta-elapsed",
     ]) {
       expect(inner.includes(cls)).toBe(true);
     }
