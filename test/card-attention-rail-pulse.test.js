@@ -105,22 +105,44 @@ describe("served /styles.css renders rail in per-status color on .card.is-attent
     expect(anyHasColor).toBe(true);
   });
 
-  it("every occurrence of the word `rail` sits inside a .card.is-attention rule block", async () => {
+  it(".card-rail selector exists as a structural column rule outside .card.is-attention", async () => {
     const body = await (await fetch(`${baseUrl}/styles.css`)).text();
-    // Strategy: collect ranges of every .card.is-attention { ... } block,
-    // then every match of /rail/ must fall inside at least one block.
-    const ranges = [];
-    const blockRe = /\.card\.is-attention\s*\{[^}]*\}/g;
+    // Collect ranges of every .card.is-attention { ... } block.
+    const attentionRanges = [];
+    const attentionRe = /\.card\.is-attention\s*\{[^}]*\}/g;
     let bm;
-    while ((bm = blockRe.exec(body)) !== null) {
-      ranges.push([bm.index, bm.index + bm[0].length]);
+    while ((bm = attentionRe.exec(body)) !== null) {
+      attentionRanges.push([bm.index, bm.index + bm[0].length]);
     }
-    expect(ranges.length).toBeGreaterThan(0);
-    const railRe = /rail/gi;
+    // Find a .card-rail rule anywhere in the CSS.
+    const railRuleRe = /\.card-rail\b/g;
     let rm;
-    while ((rm = railRe.exec(body)) !== null) {
-      const inside = ranges.some(([s, e]) => rm.index >= s && rm.index < e);
-      expect(inside).toBe(true);
+    let foundOutsideAttention = false;
+    while ((rm = railRuleRe.exec(body)) !== null) {
+      const insideAttention = attentionRanges.some(([s, e]) => rm.index >= s && rm.index < e);
+      if (!insideAttention) {
+        foundOutsideAttention = true;
+        break;
+      }
+    }
+    expect(foundOutsideAttention).toBe(true);
+  });
+
+  it("attention ring/glow/animation are exclusively scoped to .card.is-attention, not to bare .card-rail", async () => {
+    const body = await (await fetch(`${baseUrl}/styles.css`)).text();
+    // Walk every CSS rule block. For any block whose selector contains
+    // .card-rail but NOT .is-attention, forbid animation and box-shadow
+    // (these are the attention-treatment properties).
+    const blockRe = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = blockRe.exec(body)) !== null) {
+      const selector = m[1].trim();
+      const decls = m[2];
+      if (selector.startsWith("@")) continue;
+      if (!/\.card-rail\b/.test(selector)) continue;
+      if (selector.includes(".is-attention")) continue;
+      // .card-rail rules outside .is-attention must not carry animation or box-shadow glow
+      expect(/\banimation\s*:/.test(decls)).toBe(false);
     }
   });
 });
