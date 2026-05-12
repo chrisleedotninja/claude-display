@@ -183,12 +183,13 @@ describe("pure projection and Tokyo Night Storm token reuse", () => {
       expect(ok).toBe(true);
     });
 
-    it("served /app.js does not read any new SSE-shape wire keys off subagent records beyond `instance` (no scope creep)", async () => {
+    it("served /app.js does not read any new SSE-shape wire keys off subagent records beyond the chore [079] allow-list (no scope creep)", async () => {
       const res = await fetch(`${baseUrl}/app.js`);
       const body = await res.text();
       // The subagent projection inside cardsFromState references s.id,
-      // s.status, s.needs, and (chore [070]) s.instance. No other s.*
-      // wire-key reads should appear inside the cardsFromState body.
+      // s.status, s.needs, and (chore [070]) s.instance, plus (chore [079])
+      // s.title, s.detail, s.event_at, s.last_event_at. No other s.* wire-key
+      // reads should appear inside the cardsFromState body.
       const fnIdx = body.indexOf("export function cardsFromState(");
       expect(fnIdx).toBeGreaterThanOrEqual(0);
       // Walk balanced braces to find the function body end.
@@ -208,20 +209,31 @@ describe("pure projection and Tokyo Night Storm token reuse", () => {
       }
       expect(endIdx).toBeGreaterThan(bodyStart);
       const fnBody = body.slice(bodyStart, endIdx + 1);
-      // Collect every `s.<key>` reference in cardsFromState. The allow-list
-      // covers `id`, `status`, `needs`, `instance` — anything beyond that
-      // would be a new wire-shape dependency introduced by chore [070].
+      // Collect every `s.<key>` reference in cardsFromState. The widened
+      // allow-list (chore [079]) covers `id`, `status`, `needs`, `instance`,
+      // `title`, `detail`, `event_at`, `last_event_at` — anything beyond that
+      // would be a new wire-shape dependency.
       const sKeyRefs = new Set();
       const re2 = /\bs\.([A-Za-z_][A-Za-z0-9_]*)/g;
       let mm;
       while ((mm = re2.exec(fnBody)) !== null) {
         sKeyRefs.add(mm[1]);
       }
-      const allowed = new Set(["id", "status", "needs", "instance"]);
+      const allowed = new Set([
+        "id",
+        "status",
+        "needs",
+        "instance",
+        "title",
+        "detail",
+        "event_at",
+        "last_event_at",
+      ]);
       for (const key of sKeyRefs) {
         expect(allowed.has(key)).toBe(true);
       }
     });
+
   });
 });
 

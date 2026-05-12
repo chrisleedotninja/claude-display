@@ -588,10 +588,14 @@ body {
   gap: 0.25rem;
 }
 
-/* Each subagent row: connector | glyph-pill | sub-label | sub-body */
+/* Each subagent row: connector | glyph-pill | sub-label | sub-body | sub-meta.
+ * Chore [079] widens the row to five fixed tracks so the new `.sub-meta`
+ * column has a reserved slot for elapsed + relative-time stacked text. The
+ * 22px tracks match `.glyph-pill`'s explicit 22×22 sizing so the connector
+ * and pill columns align with the design's Mission Board artboard. */
 .ms-sub {
   display: grid;
-  grid-template-columns: 1.5rem 1.75rem auto 1fr;
+  grid-template-columns: 22px 22px auto 1fr auto;
   align-items: center;
   gap: 0.35rem;
   padding-left: 0.25rem;
@@ -628,11 +632,15 @@ body {
   flex-shrink: 0;
 }
 
-/* Sub-body: instance id + optional needs */
+/* Sub-body: stacks the instance id, optional title, optional detail, and the
+ * optional needs pill vertically. Switched from horizontal flex to vertical
+ * flex in chore [079] so the new `.sub-title` and `.sub-detail` lines render
+ * beneath `.sub-name` and the existing card-needs-pill remains the bottom
+ * row when present. */
 .sub-body {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -643,6 +651,35 @@ body {
   color: var(--tn-cyan);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Subagent narrative title (chore [079]). Renders the per-event title text
+ * from `record.subagents[].title` beneath the `.sub-name` line. */
+.sub-title {
+  font-size: 14px;
+  color: var(--tn-fg);
+  font-weight: 500;
+}
+
+/* Subagent narrative detail (chore [079]). Renders the per-event detail
+ * text beneath `.sub-title` when present. */
+.sub-detail {
+  font-size: 12px;
+  color: var(--tn-muted);
+  max-width: 70ch;
+}
+
+/* Subagent meta column (chore [079]). The fifth grid child of `.ms-sub` —
+ * stacks the elapsed string and the relative-time string on two lines (the
+ * design uses `<br/>` between them). Right-aligned mono so the numbers form
+ * a column down the right edge of the row. */
+.sub-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--tn-faint);
+  text-align: right;
+  align-self: start;
   white-space: nowrap;
 }
 

@@ -112,6 +112,37 @@ export function cardsFromState(records, now = Date.now()) {
           if (typeof s.instance === "string" && s.instance.length > 0) {
             sub.instance = s.instance;
           }
+          // Subagent narrative projection (chore [079]). Mirrors the
+          // parent-card projection above for title/detail (chore [076]) and
+          // elapsed/relative_time (chore [072]) — each new key is structurally
+          // omitted when the wire field is absent or empty so the renderer
+          // can apply the existing "absent value omits the element" rule.
+          if (typeof s.title === "string" && s.title.length > 0) {
+            sub.title = s.title;
+          }
+          if (typeof s.detail === "string" && s.detail.length > 0) {
+            sub.detail = s.detail;
+          }
+          // Time-source: prefer `s.event_at` (forward-compat per-event anchor)
+          // and fall back to `s.last_event_at` (the field `server.js` actually
+          // sets on every subagent activity POST today). See chore [079] notes.
+          const subEventAt =
+            typeof s.event_at === "number" &&
+            Number.isFinite(s.event_at) &&
+            s.event_at > 0
+              ? s.event_at
+              : typeof s.last_event_at === "number" &&
+                  Number.isFinite(s.last_event_at) &&
+                  s.last_event_at > 0
+                ? s.last_event_at
+                : null;
+          if (subEventAt !== null) {
+            const delta = now - subEventAt;
+            if (delta >= 0) {
+              sub.elapsed = formatElapsed(delta);
+              sub.relative_time = fmtRelative(subEventAt, now);
+            }
+          }
           // Same attention-state + allow-list gate as the top-level projection
           // below: only attention-state subagents carry the tag, and only when
           // `needs` resolves to a recognized wire-enum entry. The frozen entry
@@ -372,10 +403,18 @@ export function composeSubagentLabel({ id, instance, parentInstance }) {
   return id;
 }
 
-function SubagentCard({ id, status, color, isLast, anim, needs_tag, instance, parentInstance }) {
+function SubagentCard({ id, status, color, isLast, anim, needs_tag, instance, parentInstance, title, detail, elapsed, relative_time, now }) {
   const connector = isLast ? "└─" : "├─";
   const needKey = needKeyFor(needs_tag);
   const subName = composeSubagentLabel({ id, instance, parentInstance });
+  const hasTitle = typeof title === "string" && title.length > 0;
+  const hasDetail = typeof detail === "string" && detail.length > 0;
+  const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
+  const hasRelativeTime = typeof relative_time === "string" && relative_time.length > 0;
+  // `now` is threaded down so the auto-advance tick reaches the subagent row.
+  // The relative-time string is precomputed in `cardsFromState` (chore [079]
+  // Step 1) — referencing `now` here is enough to participate in re-renders.
+  void now;
   return html`
     <div class="ms-sub" style=${{ "--sub-accent": color, "--sub-bg": `${color}22` }}>
       <span class="connector">${connector}</span>
@@ -385,12 +424,17 @@ function SubagentCard({ id, status, color, isLast, anim, needs_tag, instance, pa
       <span class="sub-label">${status.toUpperCase()}</span>
       <div class="sub-body">
         <span class="sub-name">${subName}</span>
+        ${hasTitle ? html`<div class="sub-title">${title}</div>` : null}
+        ${hasDetail ? html`<div class="sub-detail">${detail}</div>` : null}
         ${needs_tag
           ? html`<div class="card-needs-pill" data-need=${needKey}>
               ⚑ ${needs_tag.label}
             </div>`
           : null}
       </div>
+      ${hasElapsed || hasRelativeTime
+        ? html`<span class="sub-meta">${hasElapsed ? elapsed : null}${hasElapsed && hasRelativeTime ? html`<br />` : null}${hasRelativeTime ? relative_time : null}</span>`
+        : null}
     </div>
   `;
 }
@@ -409,7 +453,7 @@ function needKeyFor(needs_tag) {
   return null;
 }
 
-function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, instance, title, detail, elapsed, relative_time, event_at, last_event_at, subagents, needs_tag, anim }) {
+function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, instance, title, detail, elapsed, relative_time, event_at, last_event_at, subagents, needs_tag, anim, now }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
   const hasTitle = typeof title === "string" && title.length > 0;
@@ -491,6 +535,11 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
           needs_tag=${s.needs_tag}
           instance=${s.instance}
           parentInstance=${instance}
+          title=${s.title}
+          detail=${s.detail}
+          elapsed=${s.elapsed}
+          relative_time=${s.relative_time}
+          now=${now}
         />`;
       })}
     </div>
@@ -533,6 +582,7 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
                     subagents=${c.subagents}
                     needs_tag=${c.needs_tag}
                     anim=${anim}
+                    now=${now}
                   />
                 </div>`,
             )}
