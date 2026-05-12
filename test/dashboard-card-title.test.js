@@ -109,3 +109,86 @@ describe("served Card source references card-meta-title", () => {
     expect(ok).toBe(true);
   });
 });
+
+// Chore 076 Step 1 — the card body's <h3 class="card-body-title"> element is
+// now wired to `record.title`, not the status label, and the element is
+// emitted only when title is a non-empty string (no fallback to the status
+// label, no `unknown`/`-` placeholder).
+describe("served Card source wires <h3 class=card-body-title> to record.title (076 Step 1)", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  // Walk the Card function body, returning the substring between its opening
+  // and closing braces. Same idiom used by tweaks-panel-field-toggles.test.js
+  // Step 7. Allows assertions over the body shape without coupling to the
+  // surrounding module-level source.
+  function findFunctionBodyOpenBrace(src, name) {
+    const sigRe = new RegExp(`\\bfunction\\s+${name}\\s*\\(`);
+    const m = src.match(sigRe);
+    if (!m) return -1;
+    let i = m.index + m[0].length;
+    let depth = 1;
+    while (i < src.length && depth > 0) {
+      const c = src[i];
+      if (c === "(") depth++;
+      else if (c === ")") depth--;
+      i++;
+    }
+    while (i < src.length && /\s/.test(src[i])) i++;
+    if (src[i] !== "{") return -1;
+    return i;
+  }
+  function extractBalancedBlock(src, openBraceIdx) {
+    let depth = 1;
+    for (let i = openBraceIdx + 1; i < src.length; i++) {
+      const c = src[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) return src.slice(openBraceIdx + 1, i);
+      }
+    }
+    return null;
+  }
+
+  it("Card's body renders <h3 class=card-body-title> wired to ${title} and guarded by hasTitle", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const openIdx = findFunctionBodyOpenBrace(body, "Card");
+    expect(openIdx).toBeGreaterThan(-1);
+    const inner = extractBalancedBlock(body, openIdx);
+    expect(inner).not.toBeNull();
+    // There must be an <h3 class="card-body-title"> element in Card's body.
+    expect(/<h3\s+class\s*=\s*"card-body-title"\s*>/.test(inner)).toBe(true);
+    // The element must be guarded by hasTitle (so it's omitted when title
+    // is absent or empty — no fallback to label).
+    const guardThenH3 =
+      /hasTitle[^]*?<h3\s+class\s*=\s*"card-body-title"\s*>\s*\$\{title\}/;
+    expect(guardThenH3.test(inner)).toBe(true);
+  });
+
+  it("Card's body no longer renders <h3 class=card-body-title> wired to ${label}", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    const openIdx = findFunctionBodyOpenBrace(body, "Card");
+    const inner = extractBalancedBlock(body, openIdx);
+    // The previous shape was `<h3 class="card-body-title">${label}</h3>` —
+    // make sure that exact wiring is gone. (The class string itself stays;
+    // only the interpolation changes.)
+    expect(/<h3\s+class\s*=\s*"card-body-title"\s*>\s*\$\{label\}/.test(inner)).toBe(false);
+  });
+
+  it("served /app.js does not introduce 'unknown' or '-' placeholders alongside the new <h3>", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // The Step 1 wiring must not introduce a fallback string for the title.
+    expect(/["']unknown["']/.test(body)).toBe(false);
+    expect(/<h3\s+class\s*=\s*"card-body-title"\s*>-</.test(body)).toBe(false);
+  });
+});

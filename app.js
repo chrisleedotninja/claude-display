@@ -439,7 +439,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
           ${subagentCount > 0 ? html`<span class="card-body-subcount">${subagentCount}</span>` : null}
           ${hasElapsed ? html`<span class="card-body-time">${elapsed}</span>` : null}
         </div>
-        <div class="card-body-title">${label}</div>
+        ${hasTitle ? html`<h3 class="card-body-title">${title}</h3>` : null}
         ${hasDetail ? html`<div class="card-body-detail">${detail}</div>` : null}
         ${hasElapsed ? html`<div class="card-meta-elapsed">${elapsed}</div>` : null}
         ${needs_tag
