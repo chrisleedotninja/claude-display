@@ -69,6 +69,7 @@ hook_event_name="$(extract_field hook_event_name)"
 message="$(extract_field message)"
 tool_name="$(extract_field tool_name)"
 tool_use_id="$(extract_field tool_use_id)"
+session_id="$(extract_field session_id)"
 tool_input_description="$(extract_tool_input_description)"
 
 # Derive the dashboard status (ADR 0002-hook-status-mapping). Order:
@@ -263,9 +264,52 @@ else
   esac
 
   # Capture the operator-supplied instance label from the environment. The
-  # env var is the sole source — no fallback chain. Empty / unset falls
-  # through to the conditional-assign guard below (omit the field).
+  # env var wins verbatim when set to a non-whitespace-only string; otherwise
+  # we auto-derive `instance` from the Claude Code session-name file keyed by
+  # the stdin payload's `session_id` (chore [081]). All failure modes
+  # (missing `~/.claude/sessions/` dir, no matching file, malformed JSON,
+  # missing/non-string `name`, no `session_id` on stdin, thrown exception)
+  # collapse to the empty string and fall through to the downstream
+  # conditional-assign guard (omit the field).
   instance="${CLAUDE_DISPLAY_INSTANCE:-}"
+  # Trim-for-emptiness mirrors the `title_override_trimmed` pattern below
+  # (lines 286–297): a whitespace-only override falls through to the
+  # auto-derive branch rather than winning as an opaque blank string. The
+  # env-var override itself, when non-blank, is preserved verbatim (we do
+  # NOT reassign `instance` to the trimmed value — only the gate is trimmed).
+  instance_override_trimmed="$(printf '%s' "$instance" | tr -d '[:space:]')"
+  if [ -z "$instance_override_trimmed" ] && [ -n "$session_id" ]; then
+    instance="$(SESSION_ID="$session_id" bun -e '
+      const sessionId = process.env.SESSION_ID || "";
+      if (sessionId.length === 0) { process.exit(0); }
+      const home = process.env.HOME || "";
+      if (home.length === 0) { process.exit(0); }
+      try {
+        const fs = await import("node:fs/promises");
+        const path = await import("node:path");
+        const dir = path.join(home, ".claude", "sessions");
+        let entries;
+        try { entries = await fs.readdir(dir); } catch { process.exit(0); }
+        for (const name of entries) {
+          if (!name.endsWith(".json")) continue;
+          try {
+            const buf = await fs.readFile(path.join(dir, name), "utf8");
+            const obj = JSON.parse(buf);
+            if (obj && typeof obj === "object" && obj.sessionId === sessionId) {
+              if (typeof obj.name === "string") {
+                const trimmed = obj.name.trim();
+                if (trimmed.length > 0) {
+                  process.stdout.write(trimmed);
+                  process.exit(0);
+                }
+              }
+              process.exit(0);
+            }
+          } catch {}
+        }
+      } catch {}
+    ' 2>/dev/null)"
+  fi
 
   # Derive the per-event card `title` (parent spec [057] / chore [061]).
   # Order, mirroring the locked authoring scheme:
