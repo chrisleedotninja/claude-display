@@ -5,7 +5,7 @@
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
 import { tokensForStatus, isAttentionStatus } from "./status-tokens.js";
-import { TONE_GROUPS, filterCardsByTones } from "./status-tones.js";
+import { TONE_GROUPS, filterCardsByTones, toneForStatus } from "./status-tones.js";
 import {
   hydrateActiveTones,
   hydrateVisibleFields,
@@ -435,12 +435,13 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
   const className = isAttentionStatus(status) ? "card is-attention" : "card";
   const subagentCount = subagents && subagents.length > 0 ? subagents.length : 0;
   const hasSubagents = subagentCount > 0;
+  const tone = toneForStatus(status);
 
   const parentCard = html`
     <div
       class=${className}
       data-status=${status}
-      style=${`--card-status-color: ${color}; --accent: ${color}; view-transition-name: card-${id}${hasSubagents ? "; border-radius: 8px 8px 0 0" : ""}`}
+      style=${`--card-status-color: ${color}; --accent: ${color}; --accent-bg: var(--c-${tone}-bg); view-transition-name: card-${id}${hasSubagents ? "; border-radius: 8px 8px 0 0" : ""}`}
     >
       <div class="card-rail">
         <span class="card-rail-chip card-status-icon">

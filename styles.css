@@ -531,44 +531,37 @@ body {
 .card-needs-pill[data-need="approve-tool"] {
   color: #9ece6a;
   border-color: #9ece6a;
-  background: rgba(158, 206, 106, 0.08);
 }
 
 .card-needs-pill[data-need="answer-question"] {
   color: var(--tn-blue);
   border-color: var(--tn-blue);
-  background: rgba(122, 162, 247, 0.1);
 }
 
 .card-needs-pill[data-need="provide-input"] {
   color: #bb9af7;
   border-color: #bb9af7;
-  background: rgba(187, 154, 247, 0.08);
 }
 
 .card-needs-pill[data-need="pick-option"] {
   color: #7dcfff;
   border-color: #7dcfff;
-  background: rgba(125, 207, 255, 0.08);
 }
 
 .card-needs-pill[data-need="confirm-destructive"] {
   color: #f7768e;
   border-color: #f7768e;
-  background: rgba(247, 118, 142, 0.1);
   font-weight: 600;
 }
 
 .card-needs-pill[data-need="resolve-conflict"] {
   color: #ff9e64;
   border-color: #ff9e64;
-  background: rgba(255, 158, 100, 0.08);
 }
 
 .card-needs-pill[data-need="review-diff"] {
   color: #e0af68;
   border-color: #e0af68;
-  background: rgba(224, 175, 104, 0.08);
 }
 
 /* Subagent nesting — ms-group/ms-subs/ms-sub structure (chore [052]).
