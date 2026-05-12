@@ -250,12 +250,6 @@ body {
   color: var(--tn-muted);
 }
 
-/* Elapsed when shown in body */
-.card-meta-elapsed {
-  font-size: 12px;
-  color: var(--tn-muted);
-}
-
 .card-id {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--muted);

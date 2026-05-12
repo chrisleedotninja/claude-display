@@ -455,7 +455,6 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
         </div>
         ${hasTitle ? html`<h3 class="card-body-title">${title}</h3>` : null}
         ${hasDetail ? html`<div class="card-body-detail">${detail}</div>` : null}
-        ${hasElapsed ? html`<div class="card-meta-elapsed">${elapsed}</div>` : null}
         ${needs_tag
           ? html`<div class="card-needs-pill" data-need=${needKey}>
               ⚑ ${needs_tag.label}
