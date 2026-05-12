@@ -103,6 +103,13 @@ export function cardsFromState(records, now = Date.now()) {
       if (Array.isArray(r.subagents)) {
         card.subagents = r.subagents.map((s) => {
           const sub = { id: s.id, status: s.status };
+          // Conditional-assign on `instance` mirrors the top-level
+          // projection guard a few lines above (`r.instance`). Absent or
+          // empty values leave `sub.instance` undefined so the renderer
+          // can structurally fall back to the bare-id label. See chore [070].
+          if (typeof s.instance === "string" && s.instance.length > 0) {
+            sub.instance = s.instance;
+          }
           // Same attention-state + allow-list gate as the top-level projection
           // below: only attention-state subagents carry the tag, and only when
           // `needs` resolves to a recognized wire-enum entry. The frozen entry
@@ -345,9 +352,28 @@ function StatusGlyph({ status, anim, size = 16 }) {
 // select the correct connector. A `--sub-accent` CSS custom property on the
 // row element carries the tone color for the pill background and chip tinting.
 // See chore [052].
-function SubagentCard({ id, status, color, isLast, anim, needs_tag }) {
+// Pure helper: compose the sub-row label for a subagent row. When both the
+// enclosing card's `instance` (parentInstance) and the subagent's own
+// `instance` are non-empty strings, returns `${parentInstance} › ${instance}`.
+// Otherwise returns the bare subagent `id` — never a free-floating `› x` or
+// `x ›`. The `›` separator is composed in JS so the existing `.sub-name`
+// typography rule continues to govern the rendered text — no new selector,
+// no new tokens. Pure so the fallback rules can be unit-tested with
+// bun:test without a DOM. See chore [070].
+export function composeSubagentLabel({ id, instance, parentInstance }) {
+  const hasParentInstance =
+    typeof parentInstance === "string" && parentInstance.length > 0;
+  const hasInstance = typeof instance === "string" && instance.length > 0;
+  if (hasParentInstance && hasInstance) {
+    return `${parentInstance} › ${instance}`;
+  }
+  return id;
+}
+
+function SubagentCard({ id, status, color, isLast, anim, needs_tag, instance, parentInstance }) {
   const connector = isLast ? "└─" : "├─";
   const needKey = needKeyFor(needs_tag);
+  const subName = composeSubagentLabel({ id, instance, parentInstance });
   return html`
     <div class="ms-sub" style=${{ "--sub-accent": color, "--sub-bg": `${color}22` }}>
       <span class="connector">${connector}</span>
@@ -356,7 +382,7 @@ function SubagentCard({ id, status, color, isLast, anim, needs_tag }) {
       </span>
       <span class="sub-label">${status.toUpperCase()}</span>
       <div class="sub-body">
-        <span class="sub-name">${id}</span>
+        <span class="sub-name">${subName}</span>
         ${needs_tag
           ? html`<div class="card-needs-pill" data-need=${needKey}>
               ⚑ ${needs_tag.label}
@@ -445,6 +471,8 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
           isLast=${i === subagents.length - 1}
           anim=${anim}
           needs_tag=${s.needs_tag}
+          instance=${s.instance}
+          parentInstance=${instance}
         />`;
       })}
     </div>

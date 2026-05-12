@@ -126,8 +126,51 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         } catch {
           return new Response("invalid json", { status: 400 });
         }
+        if (!payload || typeof payload !== "object") {
+          return new Response("missing required fields", { status: 400 });
+        }
+        // Pre-registration branch (chore [068], sibling [067]). The hook
+        // announces a subagent's existence before it has any activity to
+        // report — most importantly so the server's record carries the
+        // `instance` field by the time the eventual first activity POST
+        // (which does not re-send `instance`) merges onto it. Short-circuits
+        // before the existing `status` required-fields gate because
+        // pre-registration carries no `status` at all.
+        if (payload.kind === "pre-register") {
+          if (
+            typeof payload.id !== "string" ||
+            payload.id.length === 0 ||
+            typeof payload.parent_id !== "string" ||
+            payload.parent_id.length === 0
+          ) {
+            return new Response("missing required fields", { status: 400 });
+          }
+          const subRecord = {
+            id: payload.id,
+            id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
+          };
+          if (
+            typeof payload.instance === "string" &&
+            payload.instance.length > 0
+          ) {
+            subRecord.instance = payload.instance;
+          }
+          let parent = state.get(payload.parent_id);
+          if (!parent) {
+            // Orphan rule (ADR 0002): create a placeholder top-level record
+            // so the pre-registered subagent has somewhere to nest. No scalar
+            // fields populated because the pre-register payload sent none.
+            parent = {
+              id: payload.parent_id,
+              subagents: new Map(),
+              last_event_at: Date.now(),
+            };
+            state.set(payload.parent_id, parent);
+          }
+          parent.subagents.set(payload.id, subRecord);
+          return new Response(null, { status: 202 });
+        }
         if (
-          !payload ||
           typeof payload.id !== "string" ||
           typeof payload.status !== "string" ||
           payload.id.length === 0 ||
@@ -187,9 +230,17 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
         if (typeof payload.parent_id === "string" && state.has(payload.parent_id)) {
           const parent = state.get(payload.parent_id);
           const now = Date.now();
+          // Merge over any prior subagent record under the same id (notably
+          // one created by the pre-register branch carrying `instance`)
+          // rather than building from scratch — the activity post does not
+          // re-send `instance`, so wholesale replace would drop it. The
+          // freshly-built fields (status, last_event_at, id_raw) overlay the
+          // prior values; previously-set optional fields survive the merge.
+          const prior = parent.subagents.get(payload.id);
           const subRecord = {
+            ...(prior ?? {}),
             id: payload.id,
-            id_raw: typeof payload.id_raw === "string" ? payload.id_raw : undefined,
+            id_raw: typeof payload.id_raw === "string" ? payload.id_raw : prior?.id_raw,
             status: payload.status,
             last_event_at: now,
           };
