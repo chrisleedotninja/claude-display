@@ -84,12 +84,15 @@ body {
   overflow: hidden;
 }
 
-/* Rail column — tone-colored background via per-card --accent variable */
+/* Rail column — tone-colored background via per-card --accent variable.
+ * Layout: column with chip at the top and status label at the bottom; the
+ * rail fills the card row height because grid cells stretch by default. */
 .card-rail {
   background: var(--accent, var(--tn-faint));
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.75rem 0;
 }
 
@@ -103,6 +106,18 @@ body {
   align-items: center;
   justify-content: center;
   color: #fff;
+}
+
+/* Rail status label: mono caption rendered at the bottom of the rail column,
+ * matching the chip's dark color so it reads as a tone-on-tone caption. */
+.card-rail-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--tn-bg-darker);
+  line-height: 1.25;
 }
 
 /* Body column */

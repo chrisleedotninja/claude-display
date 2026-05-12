@@ -429,6 +429,7 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
         <span class="card-rail-chip card-status-icon">
           <${StatusGlyph} status=${status} anim=${anim} size=${16} />
         </span>
+        <span class="card-rail-label">${label.toUpperCase()}</span>
       </div>
       <div class="card-body">
         <div class="card-body-head">
