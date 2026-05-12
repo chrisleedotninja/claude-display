@@ -95,6 +95,7 @@ export function cardsFromState(records, now = Date.now()) {
         Number.isFinite(r.event_at) &&
         r.event_at > 0
       ) {
+        card.event_at = r.event_at;
         const delta = now - r.event_at;
         if (delta >= 0) {
           card.elapsed = formatElapsed(delta);
@@ -407,7 +408,7 @@ function needKeyFor(needs_tag) {
   return null;
 }
 
-function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, instance, title, detail, elapsed, subagents, needs_tag, anim }) {
+function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, instance, title, detail, elapsed, event_at, last_event_at, subagents, needs_tag, anim }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
   const hasInstance = typeof instance === "string" && instance.length > 0;
@@ -510,6 +511,8 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
                     title=${c.title}
                     detail=${c.detail}
                     elapsed=${c.elapsed}
+                    event_at=${c.event_at}
+                    last_event_at=${c.last_event_at}
                     subagents=${c.subagents}
                     needs_tag=${c.needs_tag}
                     anim=${anim}
