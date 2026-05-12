@@ -193,18 +193,46 @@ body {
   min-width: 0;
 }
 
-/* Key/value row within meta column */
+/* Key/value row within meta column. Horizontal layout: the key cell sits at a
+ * fixed width on the left and the value cell flows to the right, matching the
+ * Mission Board `.ms-row .meta .line` shape. */
 .card-meta-row {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* K/V cells inside .card-meta-row. The key is a small uppercased caption in
+ * the Mission Board palette (--tn-faint) with a fixed 56px gutter so all
+ * value cells align in a single column. The value is mono and uses the
+ * standard body text colour so the per-field meta-text rules layer cleanly
+ * on the value span. Both rules source palette via var(--…) only — no
+ * new hex literals. */
+.card-meta-k {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tn-faint);
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.card-meta-v {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--tn-fg);
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Meta field text: --tn-fg 500 weight */
 .card-meta-repo,
 .card-meta-session,
 .card-meta-desktop,
-.card-meta-instance,
-.card-meta-title,
 .card-meta-elapsed {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -218,12 +246,6 @@ body {
 /* Branch: shown in body head row */
 .card-meta-branch {
   font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--tn-muted);
-}
-
-/* Elapsed when shown in body */
-.card-meta-elapsed {
   font-size: 12px;
   color: var(--tn-muted);
 }

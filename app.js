@@ -95,6 +95,7 @@ export function cardsFromState(records, now = Date.now()) {
         Number.isFinite(r.event_at) &&
         r.event_at > 0
       ) {
+        card.event_at = r.event_at;
         const delta = now - r.event_at;
         if (delta >= 0) {
           card.elapsed = formatElapsed(delta);
@@ -408,14 +409,28 @@ function needKeyFor(needs_tag) {
   return null;
 }
 
-function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, instance, title, detail, elapsed, relative_time, subagents, needs_tag, anim }) {
+function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, instance, title, detail, elapsed, relative_time, event_at, last_event_at, subagents, needs_tag, anim }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
-  const hasInstance = typeof instance === "string" && instance.length > 0;
   const hasTitle = typeof title === "string" && title.length > 0;
   const hasDetail = typeof detail === "string" && detail.length > 0;
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
   const hasRelativeTime = typeof relative_time === "string" && relative_time.length > 0;
+  // Meta `At` row source: prefer the canonical `event_at` per-event anchor
+  // (ADR 0002); fall back to `last_event_at` only when `event_at` is absent.
+  // The row is omitted entirely when neither is present.
+  const hasEventAt =
+    typeof event_at === "number" && Number.isFinite(event_at) && event_at > 0;
+  const hasLastEventAt =
+    typeof last_event_at === "number" &&
+    Number.isFinite(last_event_at) &&
+    last_event_at > 0;
+  const atSource = hasEventAt
+    ? event_at
+    : hasLastEventAt
+      ? last_event_at
+      : null;
+  const hasAt = atSource !== null;
   const needKey = needKeyFor(needs_tag);
   const className = isAttentionStatus(status) ? "card is-attention" : "card";
   const subagentCount = subagents && subagents.length > 0 ? subagents.length : 0;
@@ -440,9 +455,8 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
           ${subagentCount > 0 ? html`<span class="card-body-subcount">${subagentCount}</span>` : null}
           ${hasRelativeTime ? html`<span class="card-body-time">${relative_time}</span>` : null}
         </div>
-        <div class="card-body-title">${label}</div>
+        ${hasTitle ? html`<h3 class="card-body-title">${title}</h3>` : null}
         ${hasDetail ? html`<div class="card-body-detail">${detail}</div>` : null}
-        ${hasElapsed ? html`<div class="card-meta-elapsed">${elapsed}</div>` : null}
         ${needs_tag
           ? html`<div class="card-needs-pill" data-need=${needKey}>
               ⚑ ${needs_tag.label}
@@ -450,11 +464,11 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
           : null}
       </div>
       <div class="card-meta">
-        ${repo ? html`<div class="card-meta-row"><span class="card-meta-repo">${repo}</span></div>` : null}
-        ${hasLabel ? html`<div class="card-meta-row"><span class="card-meta-session">${session_label}</span></div>` : null}
-        ${hasDesktop ? html`<div class="card-meta-row"><span class="card-meta-desktop">${desktop}</span></div>` : null}
-        ${hasInstance ? html`<div class="card-meta-row"><span class="card-meta-instance">${instance}</span></div>` : null}
-        ${hasTitle ? html`<div class="card-meta-row"><span class="card-meta-title">${title}</span></div>` : null}
+        ${repo ? html`<div class="card-meta-row"><span class="card-meta-k">Repo</span><span class="card-meta-v card-meta-repo">${repo}</span></div>` : null}
+        ${hasLabel ? html`<div class="card-meta-row"><span class="card-meta-k">Tmux</span><span class="card-meta-v card-meta-session">${session_label}</span></div>` : null}
+        ${hasDesktop ? html`<div class="card-meta-row"><span class="card-meta-k">Desk</span><span class="card-meta-v card-meta-desktop">${desktop}</span></div>` : null}
+        ${hasElapsed ? html`<div class="card-meta-row"><span class="card-meta-k">Elapsed</span><span class="card-meta-v card-meta-elapsed">${elapsed}</span></div>` : null}
+        ${hasAt ? html`<div class="card-meta-row"><span class="card-meta-k">At</span><span class="card-meta-v">${formatClock(atSource)}</span></div>` : null}
       </div>
     </div>
   `;
@@ -513,6 +527,8 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
                     detail=${c.detail}
                     elapsed=${c.elapsed}
                     relative_time=${c.relative_time}
+                    event_at=${c.event_at}
+                    last_event_at=${c.last_event_at}
                     subagents=${c.subagents}
                     needs_tag=${c.needs_tag}
                     anim=${anim}
