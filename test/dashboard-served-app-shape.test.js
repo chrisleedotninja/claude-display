@@ -38,4 +38,14 @@ describe("served /app.js shape — keyed render and view-transition wiring", () 
     expect(body.includes("view-transition-name: card-")).toBe(true);
     expect(body.includes("style=")).toBe(true);
   });
+
+  it("references the idSequence helper so mount() can gate transitions on no-op reorders", async () => {
+    const res = await fetch(`${baseUrl}/app.js`);
+    const body = await res.text();
+    // At minimum: the export declaration plus at least one call site inside
+    // mount(). A single occurrence would mean idSequence is declared but
+    // never wired through draw(), which is the bug this chore is fixing.
+    const occurrences = body.split("idSequence").length - 1;
+    expect(occurrences).toBeGreaterThanOrEqual(2);
+  });
 });
