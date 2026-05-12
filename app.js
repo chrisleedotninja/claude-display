@@ -888,11 +888,34 @@ export function createLiveChannel(options) {
 // when available, fall back to a synchronous call otherwise. Pure so it can
 // be unit-tested with bun:test without a DOM. Returns whatever the chosen
 // path returns so callers can chain on the transition handle.
-export function withReorderTransition(viewTransitions, renderFn) {
+//
+// Optional `prevIds` / `nextIds` (chore [080]): when BOTH are arrays AND
+// they match in length and element order, the View Transitions API is
+// short-circuited — the helper invokes `renderFn` directly. This kills the
+// per-tick flash from the elapsed-time `setInterval(draw, 1_000)` redraw
+// when nothing has actually moved. When either sequence is missing or they
+// differ in any way, the helper behaves as before (transition fires).
+export function withReorderTransition(viewTransitions, renderFn, prevIds, nextIds) {
+  if (
+    Array.isArray(prevIds) &&
+    Array.isArray(nextIds) &&
+    prevIds.length === nextIds.length &&
+    prevIds.every((id, i) => id === nextIds[i])
+  ) {
+    return renderFn();
+  }
   if (viewTransitions && typeof viewTransitions.startViewTransition === "function") {
     return viewTransitions.startViewTransition(renderFn);
   }
   return renderFn();
+}
+
+// Pure helper: project a card list down to its in-order id sequence. Used by
+// `mount()` to detect "same cards, same order" between two consecutive
+// per-tick redraws so it can skip the View Transitions API wrap on no-op
+// reorders (chore [080]). Returns a fresh array — does not mutate input.
+export function idSequence(cards) {
+  return cards.map((c) => c.id);
 }
 
 export async function mount(rootEl) {
@@ -973,13 +996,20 @@ export async function mount(rootEl) {
     anim = !anim;
     draw();
   };
+  // Previous-tick id sequence used to gate the View Transitions API wrap
+  // (chore [080]). Initialized to `null` so the first draw still routes
+  // through `startViewTransition` (sequences "differ" by definition); the
+  // artifact we're fixing only fires on per-tick redraws where the sequence
+  // is unchanged. Reassigned at the bottom of every `draw()`.
+  let prevIds = null;
   const draw = () => {
     const now = Date.now();
     const cards = stripHiddenFields(
       filterCardsByTones(cardsFromState(records, now), activeTones),
       visibleFields,
     );
-    return withReorderTransition(
+    const nextIds = idSequence(cards);
+    const result = withReorderTransition(
       typeof document !== "undefined" ? document : null,
       () =>
         render(
@@ -997,7 +1027,11 @@ export async function mount(rootEl) {
           />`,
           rootEl,
         ),
+      prevIds,
+      nextIds,
     );
+    prevIds = nextIds;
+    return result;
   };
   const res = await fetch("/api/state");
   records = await res.json();

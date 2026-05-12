@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { cardsFromState, withReorderTransition } from "../app.js";
+import { cardsFromState, withReorderTransition, idSequence } from "../app.js";
 
 describe("cardsFromState — last_event_at field", () => {
   it("includes last_event_at on each view-model when the source record carries it", () => {
@@ -110,5 +110,87 @@ describe("withReorderTransition", () => {
     expect(receivedFn).toBe(renderFn);
     expect(renderCalls).toBe(0);
     expect(result).toBe("transition-handle");
+  });
+
+  it("skips startViewTransition when prevIds and nextIds match in length and order", () => {
+    let renderCalls = 0;
+    let renderReturn = "rendered";
+    const renderFn = () => {
+      renderCalls++;
+      return renderReturn;
+    };
+    let spyCalls = 0;
+    const viewTransitions = {
+      startViewTransition(fn) {
+        spyCalls++;
+        return "transition-handle";
+      },
+    };
+    const result = withReorderTransition(viewTransitions, renderFn, ["a", "b", "c"], ["a", "b", "c"]);
+    expect(spyCalls).toBe(0);
+    expect(renderCalls).toBe(1);
+    expect(result).toBe("rendered");
+  });
+
+  it("fires startViewTransition when sequences differ in order", () => {
+    let renderCalls = 0;
+    const renderFn = () => {
+      renderCalls++;
+    };
+    let receivedFn = null;
+    let spyCalls = 0;
+    const viewTransitions = {
+      startViewTransition(fn) {
+        spyCalls++;
+        receivedFn = fn;
+        return "transition-handle";
+      },
+    };
+    const result = withReorderTransition(viewTransitions, renderFn, ["a", "b"], ["b", "a"]);
+    expect(spyCalls).toBe(1);
+    expect(receivedFn).toBe(renderFn);
+    expect(renderCalls).toBe(0);
+    expect(result).toBe("transition-handle");
+  });
+
+  it("fires startViewTransition when sequences differ in length (card appears or disappears)", () => {
+    let spyCalls = 0;
+    const viewTransitions = {
+      startViewTransition(fn) {
+        spyCalls++;
+        return "transition-handle";
+      },
+    };
+    // card added
+    withReorderTransition(viewTransitions, () => {}, ["a"], ["a", "b"]);
+    expect(spyCalls).toBe(1);
+    // card removed
+    withReorderTransition(viewTransitions, () => {}, ["a", "b"], ["a"]);
+    expect(spyCalls).toBe(2);
+  });
+});
+
+describe("idSequence", () => {
+  it("returns the in-order id array for a list of cards", () => {
+    const cards = [
+      { id: "a", status: "s" },
+      { id: "b", status: "s" },
+      { id: "c", status: "s" },
+    ];
+    expect(idSequence(cards)).toEqual(["a", "b", "c"]);
+  });
+
+  it("returns an empty array for an empty input", () => {
+    expect(idSequence([])).toEqual([]);
+  });
+
+  it("does not mutate its input array", () => {
+    const cards = [
+      { id: "a", status: "s" },
+      { id: "b", status: "s" },
+    ];
+    const snapshot = JSON.parse(JSON.stringify(cards));
+    idSequence(cards);
+    expect(cards).toEqual(snapshot);
   });
 });
