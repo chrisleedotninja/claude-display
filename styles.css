@@ -84,12 +84,15 @@ body {
   overflow: hidden;
 }
 
-/* Rail column — tone-colored background via per-card --accent variable */
+/* Rail column — tone-colored background via per-card --accent variable.
+ * Layout: column with chip at the top and status label at the bottom; the
+ * rail fills the card row height because grid cells stretch by default. */
 .card-rail {
   background: var(--accent, var(--tn-faint));
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.75rem 0;
 }
 
@@ -103,6 +106,18 @@ body {
   align-items: center;
   justify-content: center;
   color: #fff;
+}
+
+/* Rail status label: mono caption rendered at the bottom of the rail column,
+ * matching the chip's dark color so it reads as a tone-on-tone caption. */
+.card-rail-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--tn-bg-darker);
+  line-height: 1.25;
 }
 
 /* Body column */
@@ -162,7 +177,7 @@ body {
   font-size: 12px;
   color: var(--tn-muted);
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -178,18 +193,46 @@ body {
   min-width: 0;
 }
 
-/* Key/value row within meta column */
+/* Key/value row within meta column. Horizontal layout: the key cell sits at a
+ * fixed width on the left and the value cell flows to the right, matching the
+ * Mission Board `.ms-row .meta .line` shape. */
 .card-meta-row {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* K/V cells inside .card-meta-row. The key is a small uppercased caption in
+ * the Mission Board palette (--tn-faint) with a fixed 56px gutter so all
+ * value cells align in a single column. The value is mono and uses the
+ * standard body text colour so the per-field meta-text rules layer cleanly
+ * on the value span. Both rules source palette via var(--…) only — no
+ * new hex literals. */
+.card-meta-k {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tn-faint);
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.card-meta-v {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--tn-fg);
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Meta field text: --tn-fg 500 weight */
 .card-meta-repo,
 .card-meta-session,
 .card-meta-desktop,
-.card-meta-instance,
-.card-meta-title,
 .card-meta-elapsed {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -203,12 +246,6 @@ body {
 /* Branch: shown in body head row */
 .card-meta-branch {
   font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--tn-muted);
-}
-
-/* Elapsed when shown in body */
-.card-meta-elapsed {
   font-size: 12px;
   color: var(--tn-muted);
 }
@@ -494,44 +531,37 @@ body {
 .card-needs-pill[data-need="approve-tool"] {
   color: #9ece6a;
   border-color: #9ece6a;
-  background: rgba(158, 206, 106, 0.08);
 }
 
 .card-needs-pill[data-need="answer-question"] {
   color: var(--tn-blue);
   border-color: var(--tn-blue);
-  background: rgba(122, 162, 247, 0.1);
 }
 
 .card-needs-pill[data-need="provide-input"] {
   color: #bb9af7;
   border-color: #bb9af7;
-  background: rgba(187, 154, 247, 0.08);
 }
 
 .card-needs-pill[data-need="pick-option"] {
   color: #7dcfff;
   border-color: #7dcfff;
-  background: rgba(125, 207, 255, 0.08);
 }
 
 .card-needs-pill[data-need="confirm-destructive"] {
   color: #f7768e;
   border-color: #f7768e;
-  background: rgba(247, 118, 142, 0.1);
   font-weight: 600;
 }
 
 .card-needs-pill[data-need="resolve-conflict"] {
   color: #ff9e64;
   border-color: #ff9e64;
-  background: rgba(255, 158, 100, 0.08);
 }
 
 .card-needs-pill[data-need="review-diff"] {
   color: #e0af68;
   border-color: #e0af68;
-  background: rgba(224, 175, 104, 0.08);
 }
 
 /* Subagent nesting — ms-group/ms-subs/ms-sub structure (chore [052]).
@@ -558,10 +588,14 @@ body {
   gap: 0.25rem;
 }
 
-/* Each subagent row: connector | glyph-pill | sub-label | sub-body */
+/* Each subagent row: connector | glyph-pill | sub-label | sub-body | sub-meta.
+ * Chore [079] widens the row to five fixed tracks so the new `.sub-meta`
+ * column has a reserved slot for elapsed + relative-time stacked text. The
+ * 22px tracks match `.glyph-pill`'s explicit 22×22 sizing so the connector
+ * and pill columns align with the design's Mission Board artboard. */
 .ms-sub {
   display: grid;
-  grid-template-columns: 1.5rem 1.75rem auto 1fr;
+  grid-template-columns: 22px 22px auto 1fr auto;
   align-items: center;
   gap: 0.35rem;
   padding-left: 0.25rem;
@@ -598,11 +632,15 @@ body {
   flex-shrink: 0;
 }
 
-/* Sub-body: instance id + optional needs */
+/* Sub-body: stacks the instance id, optional title, optional detail, and the
+ * optional needs pill vertically. Switched from horizontal flex to vertical
+ * flex in chore [079] so the new `.sub-title` and `.sub-detail` lines render
+ * beneath `.sub-name` and the existing card-needs-pill remains the bottom
+ * row when present. */
 .sub-body {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -613,6 +651,35 @@ body {
   color: var(--tn-cyan);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Subagent narrative title (chore [079]). Renders the per-event title text
+ * from `record.subagents[].title` beneath the `.sub-name` line. */
+.sub-title {
+  font-size: 14px;
+  color: var(--tn-fg);
+  font-weight: 500;
+}
+
+/* Subagent narrative detail (chore [079]). Renders the per-event detail
+ * text beneath `.sub-title` when present. */
+.sub-detail {
+  font-size: 12px;
+  color: var(--tn-muted);
+  max-width: 70ch;
+}
+
+/* Subagent meta column (chore [079]). The fifth grid child of `.ms-sub` —
+ * stacks the elapsed string and the relative-time string on two lines (the
+ * design uses `<br/>` between them). Right-aligned mono so the numbers form
+ * a column down the right edge of the row. */
+.sub-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--tn-faint);
+  text-align: right;
+  align-self: start;
   white-space: nowrap;
 }
 
@@ -649,6 +716,11 @@ body {
 .ms-head-title {
   font-weight: 600;
   letter-spacing: 0.04em;
+  color: var(--tn-muted);
+}
+
+.ms-head-title-accent {
+  color: var(--tn-cyan);
 }
 
 .ms-head-clock {

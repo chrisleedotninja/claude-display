@@ -49,4 +49,43 @@ describe("served Card source references card-elapsed", () => {
     const body = await res.text();
     expect(/\.card-meta-elapsed\b/.test(body)).toBe(true);
   });
+
+  // Chore 076 Step 5 — the elapsed value renders exactly once: via the
+  // meta column's Elapsed K/V row. The previous in-body
+  // `<div class="card-meta-elapsed">${elapsed}</div>` rendering is gone.
+  it("Card's body mentions the card-meta-elapsed class string exactly once (076 Step 5)", async () => {
+    const body = await (await fetch(`${baseUrl}/app.js`)).text();
+    // Walk to Card's function body and count occurrences of the class.
+    const sigRe = /\bfunction\s+Card\s*\(/;
+    const m = body.match(sigRe);
+    expect(m).not.toBeNull();
+    let i = m.index + m[0].length;
+    let depth = 1;
+    while (i < body.length && depth > 0) {
+      const c = body[i];
+      if (c === "(") depth++;
+      else if (c === ")") depth--;
+      i++;
+    }
+    while (i < body.length && /\s/.test(body[i])) i++;
+    expect(body[i]).toBe("{");
+    const openIdx = i;
+    depth = 1;
+    let closeIdx = -1;
+    for (let j = openIdx + 1; j < body.length; j++) {
+      const c = body[j];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) {
+          closeIdx = j;
+          break;
+        }
+      }
+    }
+    expect(closeIdx).toBeGreaterThan(openIdx);
+    const inner = body.slice(openIdx + 1, closeIdx);
+    const occurrences = inner.split("card-meta-elapsed").length - 1;
+    expect(occurrences).toBe(1);
+  });
 });

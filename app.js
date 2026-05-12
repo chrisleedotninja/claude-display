@@ -5,7 +5,7 @@
 import { h, render } from "./vendor/preact.module.js";
 import htm from "./vendor/htm.module.js";
 import { tokensForStatus, isAttentionStatus } from "./status-tokens.js";
-import { TONE_GROUPS, filterCardsByTones } from "./status-tones.js";
+import { TONE_GROUPS, filterCardsByTones, toneForStatus } from "./status-tones.js";
 import {
   hydrateActiveTones,
   hydrateVisibleFields,
@@ -95,9 +95,11 @@ export function cardsFromState(records, now = Date.now()) {
         Number.isFinite(r.event_at) &&
         r.event_at > 0
       ) {
+        card.event_at = r.event_at;
         const delta = now - r.event_at;
         if (delta >= 0) {
           card.elapsed = formatElapsed(delta);
+          card.relative_time = fmtRelative(r.event_at, now);
         }
       }
       if (Array.isArray(r.subagents)) {
@@ -109,6 +111,37 @@ export function cardsFromState(records, now = Date.now()) {
           // can structurally fall back to the bare-id label. See chore [070].
           if (typeof s.instance === "string" && s.instance.length > 0) {
             sub.instance = s.instance;
+          }
+          // Subagent narrative projection (chore [079]). Mirrors the
+          // parent-card projection above for title/detail (chore [076]) and
+          // elapsed/relative_time (chore [072]) — each new key is structurally
+          // omitted when the wire field is absent or empty so the renderer
+          // can apply the existing "absent value omits the element" rule.
+          if (typeof s.title === "string" && s.title.length > 0) {
+            sub.title = s.title;
+          }
+          if (typeof s.detail === "string" && s.detail.length > 0) {
+            sub.detail = s.detail;
+          }
+          // Time-source: prefer `s.event_at` (forward-compat per-event anchor)
+          // and fall back to `s.last_event_at` (the field `server.js` actually
+          // sets on every subagent activity POST today). See chore [079] notes.
+          const subEventAt =
+            typeof s.event_at === "number" &&
+            Number.isFinite(s.event_at) &&
+            s.event_at > 0
+              ? s.event_at
+              : typeof s.last_event_at === "number" &&
+                  Number.isFinite(s.last_event_at) &&
+                  s.last_event_at > 0
+                ? s.last_event_at
+                : null;
+          if (subEventAt !== null) {
+            const delta = now - subEventAt;
+            if (delta >= 0) {
+              sub.elapsed = formatElapsed(delta);
+              sub.relative_time = fmtRelative(subEventAt, now);
+            }
           }
           // Same attention-state + allow-list gate as the top-level projection
           // below: only attention-state subagents carry the tag, and only when
@@ -370,10 +403,18 @@ export function composeSubagentLabel({ id, instance, parentInstance }) {
   return id;
 }
 
-function SubagentCard({ id, status, color, isLast, anim, needs_tag, instance, parentInstance }) {
+function SubagentCard({ id, status, color, isLast, anim, needs_tag, instance, parentInstance, title, detail, elapsed, relative_time, now }) {
   const connector = isLast ? "└─" : "├─";
   const needKey = needKeyFor(needs_tag);
   const subName = composeSubagentLabel({ id, instance, parentInstance });
+  const hasTitle = typeof title === "string" && title.length > 0;
+  const hasDetail = typeof detail === "string" && detail.length > 0;
+  const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
+  const hasRelativeTime = typeof relative_time === "string" && relative_time.length > 0;
+  // `now` is threaded down so the auto-advance tick reaches the subagent row.
+  // The relative-time string is precomputed in `cardsFromState` (chore [079]
+  // Step 1) — referencing `now` here is enough to participate in re-renders.
+  void now;
   return html`
     <div class="ms-sub" style=${{ "--sub-accent": color, "--sub-bg": `${color}22` }}>
       <span class="connector">${connector}</span>
@@ -383,12 +424,17 @@ function SubagentCard({ id, status, color, isLast, anim, needs_tag, instance, pa
       <span class="sub-label">${status.toUpperCase()}</span>
       <div class="sub-body">
         <span class="sub-name">${subName}</span>
+        ${hasTitle ? html`<div class="sub-title">${title}</div>` : null}
+        ${hasDetail ? html`<div class="sub-detail">${detail}</div>` : null}
         ${needs_tag
           ? html`<div class="card-needs-pill" data-need=${needKey}>
               ⚑ ${needs_tag.label}
             </div>`
           : null}
       </div>
+      ${hasElapsed || hasRelativeTime
+        ? html`<span class="sub-meta">${hasElapsed ? elapsed : null}${hasElapsed && hasRelativeTime ? html`<br />` : null}${hasRelativeTime ? relative_time : null}</span>`
+        : null}
     </div>
   `;
 }
@@ -407,39 +453,55 @@ function needKeyFor(needs_tag) {
   return null;
 }
 
-function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, instance, title, detail, elapsed, subagents, needs_tag, anim }) {
+function Card({ id, status, color, icon, label, repo, branch, session_label, desktop, instance, title, detail, elapsed, relative_time, event_at, last_event_at, subagents, needs_tag, anim, now }) {
   const hasLabel = typeof session_label === "string" && session_label.length > 0;
   const hasDesktop = typeof desktop === "string" && desktop.length > 0;
-  const hasInstance = typeof instance === "string" && instance.length > 0;
   const hasTitle = typeof title === "string" && title.length > 0;
   const hasDetail = typeof detail === "string" && detail.length > 0;
   const hasElapsed = typeof elapsed === "string" && elapsed.length > 0;
+  const hasRelativeTime = typeof relative_time === "string" && relative_time.length > 0;
+  // Meta `At` row source: prefer the canonical `event_at` per-event anchor
+  // (ADR 0002); fall back to `last_event_at` only when `event_at` is absent.
+  // The row is omitted entirely when neither is present.
+  const hasEventAt =
+    typeof event_at === "number" && Number.isFinite(event_at) && event_at > 0;
+  const hasLastEventAt =
+    typeof last_event_at === "number" &&
+    Number.isFinite(last_event_at) &&
+    last_event_at > 0;
+  const atSource = hasEventAt
+    ? event_at
+    : hasLastEventAt
+      ? last_event_at
+      : null;
+  const hasAt = atSource !== null;
   const needKey = needKeyFor(needs_tag);
   const className = isAttentionStatus(status) ? "card is-attention" : "card";
   const subagentCount = subagents && subagents.length > 0 ? subagents.length : 0;
   const hasSubagents = subagentCount > 0;
+  const tone = toneForStatus(status);
 
   const parentCard = html`
     <div
       class=${className}
       data-status=${status}
-      style=${`--card-status-color: ${color}; --accent: ${color}; view-transition-name: card-${id}${hasSubagents ? "; border-radius: 8px 8px 0 0" : ""}`}
+      style=${`--card-status-color: ${color}; --accent: ${color}; --accent-bg: var(--c-${tone}-bg); view-transition-name: card-${id}${hasSubagents ? "; border-radius: 8px 8px 0 0" : ""}`}
     >
       <div class="card-rail">
         <span class="card-rail-chip card-status-icon">
           <${StatusGlyph} status=${status} anim=${anim} size=${16} />
         </span>
+        <span class="card-rail-label">${label.toUpperCase()}</span>
       </div>
       <div class="card-body">
         <div class="card-body-head">
-          <span class="card-body-id card-id">${id}</span>
+          <span class="card-body-id card-id">${instance || id}</span>
           ${branch ? html`<span class="card-meta-branch">${branch}</span>` : null}
           ${subagentCount > 0 ? html`<span class="card-body-subcount">${subagentCount}</span>` : null}
-          ${hasElapsed ? html`<span class="card-body-time">${elapsed}</span>` : null}
+          ${hasRelativeTime ? html`<span class="card-body-time">${relative_time}</span>` : null}
         </div>
-        <div class="card-body-title">${label}</div>
+        ${hasTitle ? html`<h3 class="card-body-title">${title}</h3>` : null}
         ${hasDetail ? html`<div class="card-body-detail">${detail}</div>` : null}
-        ${hasElapsed ? html`<div class="card-meta-elapsed">${elapsed}</div>` : null}
         ${needs_tag
           ? html`<div class="card-needs-pill" data-need=${needKey}>
               ⚑ ${needs_tag.label}
@@ -447,11 +509,11 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
           : null}
       </div>
       <div class="card-meta">
-        ${repo ? html`<div class="card-meta-row"><span class="card-meta-repo">${repo}</span></div>` : null}
-        ${hasLabel ? html`<div class="card-meta-row"><span class="card-meta-session">${session_label}</span></div>` : null}
-        ${hasDesktop ? html`<div class="card-meta-row"><span class="card-meta-desktop">${desktop}</span></div>` : null}
-        ${hasInstance ? html`<div class="card-meta-row"><span class="card-meta-instance">${instance}</span></div>` : null}
-        ${hasTitle ? html`<div class="card-meta-row"><span class="card-meta-title">${title}</span></div>` : null}
+        ${repo ? html`<div class="card-meta-row"><span class="card-meta-k">Repo</span><span class="card-meta-v card-meta-repo">${repo}</span></div>` : null}
+        ${hasLabel ? html`<div class="card-meta-row"><span class="card-meta-k">Tmux</span><span class="card-meta-v card-meta-session">${session_label}</span></div>` : null}
+        ${hasDesktop ? html`<div class="card-meta-row"><span class="card-meta-k">Desk</span><span class="card-meta-v card-meta-desktop">${desktop}</span></div>` : null}
+        ${hasElapsed ? html`<div class="card-meta-row"><span class="card-meta-k">Elapsed</span><span class="card-meta-v card-meta-elapsed">${elapsed}</span></div>` : null}
+        ${hasAt ? html`<div class="card-meta-row"><span class="card-meta-k">At</span><span class="card-meta-v">${formatClock(atSource)}</span></div>` : null}
       </div>
     </div>
   `;
@@ -473,6 +535,11 @@ function Card({ id, status, color, icon, label, repo, branch, session_label, des
           needs_tag=${s.needs_tag}
           instance=${s.instance}
           parentInstance=${instance}
+          title=${s.title}
+          detail=${s.detail}
+          elapsed=${s.elapsed}
+          relative_time=${s.relative_time}
+          now=${now}
         />`;
       })}
     </div>
@@ -509,9 +576,13 @@ function Dashboard({ cards, now, panelOpen, onTogglePanel, activeTones, onToggle
                     title=${c.title}
                     detail=${c.detail}
                     elapsed=${c.elapsed}
+                    relative_time=${c.relative_time}
+                    event_at=${c.event_at}
+                    last_event_at=${c.last_event_at}
                     subagents=${c.subagents}
                     needs_tag=${c.needs_tag}
                     anim=${anim}
+                    now=${now}
                   />
                 </div>`,
             )}
@@ -622,6 +693,30 @@ export function formatClock(ms) {
   return `${hh}:${mm}`;
 }
 
+// Pure helper: render the delta (`now - ts`) as a single-unit relative-time
+// string for the Mission Board card narrative: `just now` (delta < 1m),
+// `Nm ago` (1m–1h), `Nh ago` (1h–1d), `Nd ago` (≥ 1d). Floors at each bucket.
+// Non-finite, non-number, negative, or future timestamps (`ts > now`) return
+// `"just now"` — the same defensive fallback `formatClock` uses for unreadable
+// input. See chore [072] / Mission Board design.
+export function fmtRelative(ts, now) {
+  if (
+    typeof ts !== "number" ||
+    typeof now !== "number" ||
+    !Number.isFinite(ts) ||
+    !Number.isFinite(now) ||
+    ts < 0 ||
+    ts > now
+  ) {
+    return "just now";
+  }
+  const delta = now - ts;
+  if (delta < 60_000) return "just now";
+  if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`;
+  if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`;
+  return `${Math.floor(delta / 86_400_000)}d ago`;
+}
+
 // Preact functional component: renders the header strip with the dashboard
 // title on the left and a live HH:MM clock on the right.
 // Accepts a `now` prop (Unix timestamp ms) for the clock value.
@@ -629,7 +724,7 @@ export function formatClock(ms) {
 export function HeaderStrip({ now }) {
   return html`
     <div class="ms-head">
-      <span class="ms-head-title">claude-display</span>
+      <span class="ms-head-title"><span class="ms-head-title-accent">▍</span> claude code · mission board</span>
       <span class="ms-head-clock">${formatClock(now)}</span>
     </div>
   `;

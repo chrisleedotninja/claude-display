@@ -115,4 +115,24 @@ describe("served Card source renders card-body-detail under the title", () => {
     expect(/display:\s*-webkit-box/.test(declarations)).toBe(true);
     expect(/overflow:\s*hidden/.test(declarations)).toBe(true);
   });
+
+  it("served /styles.css .card-body-detail rule clamps to six lines and preserves the surrounding declarations", async () => {
+    const res = await fetch(`${baseUrl}/styles.css`);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    const ruleMatch = body.match(/\.card-body-detail\b[^{]*\{([^}]*)\}/);
+    expect(ruleMatch).not.toBeNull();
+    const declarations = ruleMatch[1];
+    // Pin -webkit-line-clamp value to exactly 6 (tolerate whitespace, forbid
+    // 36 / 60 / etc. via the terminating semicolon).
+    expect(/-webkit-line-clamp:\s*6\s*;/.test(declarations)).toBe(true);
+    // The other declarations on the rule are still present — a future
+    // careless edit that flips one of them is caught here.
+    expect(declarations.includes("var(--font-mono)")).toBe(true);
+    expect(/font-size:\s*12px/.test(declarations)).toBe(true);
+    expect(declarations.includes("var(--tn-muted)")).toBe(true);
+    expect(/display:\s*-webkit-box/.test(declarations)).toBe(true);
+    expect(/-webkit-box-orient:\s*vertical/.test(declarations)).toBe(true);
+    expect(/overflow:\s*hidden/.test(declarations)).toBe(true);
+  });
 });
