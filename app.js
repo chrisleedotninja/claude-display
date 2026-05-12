@@ -653,7 +653,7 @@ export function fmtRelative(ts, now) {
 export function HeaderStrip({ now }) {
   return html`
     <div class="ms-head">
-      <span class="ms-head-title">claude-display</span>
+      <span class="ms-head-title"><span class="ms-head-title-accent">▍</span> claude code · mission board</span>
       <span class="ms-head-clock">${formatClock(now)}</span>
     </div>
   `;

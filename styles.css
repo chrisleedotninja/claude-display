@@ -649,6 +649,11 @@ body {
 .ms-head-title {
   font-weight: 600;
   letter-spacing: 0.04em;
+  color: var(--tn-muted);
+}
+
+.ms-head-title-accent {
+  color: var(--tn-cyan);
 }
 
 .ms-head-clock {
