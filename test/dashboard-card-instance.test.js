@@ -108,3 +108,51 @@ describe("served Card source references card-meta-instance", () => {
     expect(ok).toBe(true);
   });
 });
+
+describe("served Card source's head row leads with instance and falls back to id", () => {
+  let handle;
+  let baseUrl;
+
+  beforeEach(() => {
+    handle = createServer({ port: 0, hostname: "127.0.0.1" });
+    baseUrl = `http://127.0.0.1:${handle.server.port}`;
+  });
+
+  afterEach(() => {
+    handle.stop();
+  });
+
+  it("served /app.js source binds the .card-body-id element to an expression that mentions both instance and id", async () => {
+    const res = await fetch(`${baseUrl}/app.js`);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    // Locate the head-row .card-body-id element template and require its
+    // interpolation references both `instance` and `id`. Mirrors the
+    // structural-source assertion pattern used by the sibling
+    // `card-meta-instance` guard test above.
+    const headIdPattern = /card-body-id[^]*?\$\{[^}]*\}/;
+    const match = body.match(headIdPattern);
+    expect(match).not.toBeNull();
+    // The matched interpolation must mention both `instance` (the lead)
+    // and `id` (the fallback) — accepts any guard form (`||`, ternary,
+    // `??`) so long as both identifiers participate in the binding.
+    expect(/instance/.test(match[0])).toBe(true);
+    expect(/\bid\b/.test(match[0])).toBe(true);
+  });
+
+  it("served /app.js source still includes a literal .card-body-id class name (cyan-mono fallback styling unchanged)", async () => {
+    const res = await fetch(`${baseUrl}/app.js`);
+    const body = await res.text();
+    expect(body.includes("card-body-id")).toBe(true);
+  });
+
+  it("served /styles.css's .card-body-id rule remains cyan-mono so layout is stable across the instance/id fallback", async () => {
+    const res = await fetch(`${baseUrl}/styles.css`);
+    const body = await res.text();
+    const ruleMatch = body.match(/\.card-body-id\b[^{]*\{([^}]*)\}/);
+    expect(ruleMatch).not.toBeNull();
+    const declarations = ruleMatch[1];
+    expect(declarations.includes("var(--font-mono)")).toBe(true);
+    expect(/var\(--tn-cyan\)/.test(declarations)).toBe(true);
+  });
+});
