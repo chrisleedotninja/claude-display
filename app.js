@@ -622,6 +622,30 @@ export function formatClock(ms) {
   return `${hh}:${mm}`;
 }
 
+// Pure helper: render the delta (`now - ts`) as a single-unit relative-time
+// string for the Mission Board card narrative: `just now` (delta < 1m),
+// `Nm ago` (1m–1h), `Nh ago` (1h–1d), `Nd ago` (≥ 1d). Floors at each bucket.
+// Non-finite, non-number, negative, or future timestamps (`ts > now`) return
+// `"just now"` — the same defensive fallback `formatClock` uses for unreadable
+// input. See chore [072] / Mission Board design.
+export function fmtRelative(ts, now) {
+  if (
+    typeof ts !== "number" ||
+    typeof now !== "number" ||
+    !Number.isFinite(ts) ||
+    !Number.isFinite(now) ||
+    ts < 0 ||
+    ts > now
+  ) {
+    return "just now";
+  }
+  const delta = now - ts;
+  if (delta < 60_000) return "just now";
+  if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`;
+  if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`;
+  return `${Math.floor(delta / 86_400_000)}d ago`;
+}
+
 // Preact functional component: renders the header strip with the dashboard
 // title on the left and a live HH:MM clock on the right.
 // Accepts a `now` prop (Unix timestamp ms) for the clock value.
