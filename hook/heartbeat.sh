@@ -263,22 +263,29 @@ else
     approval|waiting|blocked) needs_for_payload="$needs" ;;
   esac
 
-  # Capture the operator-supplied instance label from the environment. The
-  # env var wins verbatim when set to a non-whitespace-only string; otherwise
-  # we auto-derive `instance` from the Claude Code session-name file keyed by
-  # the stdin payload's `session_id` (chore [081]). All failure modes
-  # (missing `~/.claude/sessions/` dir, no matching file, malformed JSON,
+  # Resolve the instance label using three signals, in precedence order
+  # (chore [082] flipped this from the original [081] ordering):
+  #   1. The Claude Code session-name file keyed by the stdin payload's
+  #      `session_id` — when its `name` is a non-blank string, the trimmed
+  #      value wins. This is the primary signal because the session name is
+  #      the operator's most specific, in-the-moment label.
+  #   2. CLAUDE_DISPLAY_INSTANCE — when set to a non-whitespace-only string,
+  #      the verbatim (UNTRIMMED) env-var value wins. Mirrors the existing
+  #      trim-for-emptiness pattern on the title override: whitespace-only
+  #      values fall through rather than winning as an opaque blank string.
+  #   3. The stdin payload's `session_id` — verbatim (UNTRIMMED) when
+  #      non-whitespace-only after the same trim-for-emptiness gate. No
+  #      shortened form is computed (the codebase has no shortening
+  #      convention for `session_id`; the spec's "match what's available"
+  #      language permits verbatim emission).
+  # If none of the three yields a non-empty value, `instance` stays empty
+  # and the downstream conditional-assign guard at the JSON-build step
+  # omits the field. All failure modes in the session-file lookup (missing
+  # `~/.claude/sessions/` dir, no matching file, malformed JSON,
   # missing/non-string `name`, no `session_id` on stdin, thrown exception)
-  # collapse to the empty string and fall through to the downstream
-  # conditional-assign guard (omit the field).
-  instance="${CLAUDE_DISPLAY_INSTANCE:-}"
-  # Trim-for-emptiness mirrors the `title_override_trimmed` pattern below
-  # (lines 286–297): a whitespace-only override falls through to the
-  # auto-derive branch rather than winning as an opaque blank string. The
-  # env-var override itself, when non-blank, is preserved verbatim (we do
-  # NOT reassign `instance` to the trimmed value — only the gate is trimmed).
-  instance_override_trimmed="$(printf '%s' "$instance" | tr -d '[:space:]')"
-  if [ -z "$instance_override_trimmed" ] && [ -n "$session_id" ]; then
+  # collapse to the empty string and fall through to tier 2.
+  instance=""
+  if [ -n "$session_id" ]; then
     instance="$(SESSION_ID="$session_id" bun -e '
       const sessionId = process.env.SESSION_ID || "";
       if (sessionId.length === 0) { process.exit(0); }
@@ -309,6 +316,19 @@ else
         }
       } catch {}
     ' 2>/dev/null)"
+  fi
+  if [ -z "$instance" ]; then
+    instance_override="${CLAUDE_DISPLAY_INSTANCE:-}"
+    instance_override_trimmed="$(printf '%s' "$instance_override" | tr -d '[:space:]')"
+    if [ -n "$instance_override_trimmed" ]; then
+      instance="$instance_override"
+    fi
+  fi
+  if [ -z "$instance" ]; then
+    session_id_trimmed="$(printf '%s' "$session_id" | tr -d '[:space:]')"
+    if [ -n "$session_id_trimmed" ]; then
+      instance="$session_id"
+    fi
   fi
 
   # Derive the per-event card `title` (parent spec [057] / chore [061]).
