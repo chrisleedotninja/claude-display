@@ -64,13 +64,18 @@ extract_tool_input_description() {
   '
 }
 cwd="$(extract_field cwd)"
-parent_tool_use_id="$(extract_field parent_tool_use_id)"
 hook_event_name="$(extract_field hook_event_name)"
 message="$(extract_field message)"
 tool_name="$(extract_field tool_name)"
 tool_use_id="$(extract_field tool_use_id)"
 session_id="$(extract_field session_id)"
 tool_input_description="$(extract_tool_input_description)"
+# Claude Code's current subagent model marks subagent hook fires with a
+# top-level `agent_id` string field (and an accompanying `agent_type`).
+# Replaces the older `parent_tool_use_id` discriminator. When `agent_id`
+# is non-empty, this hook fire is inside a subagent.
+agent_id="$(extract_field agent_id)"
+agent_type="$(extract_field agent_type)"
 
 # Derive the dashboard status (ADR 0002-hook-status-mapping). Order:
 #   1. CLAUDE_DISPLAY_STATUS, if set to one of the eight enum values, wins
@@ -106,7 +111,7 @@ if [ -z "$status" ]; then
     SessionStart|Stop|SubagentStop)
       status="idle"
       ;;
-    UserPromptSubmit|PreToolUse|PostToolUse|PreCompact)
+    UserPromptSubmit|PreToolUse|PostToolUse|PreCompact|SubagentStart)
       status="working"
       ;;
     PermissionRequest)
@@ -201,22 +206,30 @@ fi
 
 url="${CLAUDE_DISPLAY_URL:-http://127.0.0.1:7878}/events"
 
-if [ -n "$parent_tool_use_id" ]; then
-  # Subagent fire — the shell-derived id is the parent's id; derive a
-  # subagent id from `(parent_id, parent_tool_use_id)` per ADR 0002. The
-  # subagent payload is minimal (id/id_raw/parent_id/status); the server
-  # derives `last_event_at` itself for subagent records.
+if [ -n "$agent_id" ]; then
+  # Subagent fire — Claude Code marks subagent hook fires with a top-level
+  # `agent_id` string (replacing the older `parent_tool_use_id` discriminator)
+  # and an accompanying `agent_type` (the subagent kind, e.g.
+  # "general-purpose"). The shell-derived id is the parent's id; the
+  # subagent's id is the first 8 chars of `agent_id` (matching the existing
+  # 8-char dashboard convention), with the full `agent_id` retained as
+  # `id_raw`. `agent_type` is forwarded as the row's `instance` label so the
+  # dashboard has something human-readable to render until/unless a richer
+  # name is supplied by a later mechanism (the pre-registration path that
+  # forwarded `tool_input.description` was retired with Claude Code's move
+  # from the `Task` tool name to `Agent`; `description` and `agent_id` no
+  # longer co-occur on any single event).
   parent_id="$shell_id"
-  id_raw="${parent_id}:${parent_tool_use_id}"
-  id="$(printf '%s' "$id_raw" | shasum -a 256 | cut -c1-8)"
+  id_raw="$agent_id"
+  id="$(printf '%s' "$agent_id" | cut -c1-8)"
   # SubagentStop hook event signals the subagent has finished — always emit
   # the end-flavored payload (status: "idle") so the server removes the
   # subagent record (ADR 0002 subagent-removal contract from chore [030];
   # not subject to the CLAUDE_DISPLAY_STATUS override). All other subagent
   # fires use the same derived status as a top-level fire (ADR 0002 hook
   # status mapping from chore [021]; per the static map this is typically
-  # "working" for PreToolUse/PostToolUse/UserPromptSubmit/PreCompact, with
-  # override fall-through honored).
+  # "working" for SubagentStart/PreToolUse/PostToolUse/UserPromptSubmit/
+  # PreCompact, with override fall-through honored).
   if [ "$hook_event_name" = "SubagentStop" ]; then
     sub_status="idle"
   else
@@ -230,13 +243,16 @@ if [ -n "$parent_tool_use_id" ]; then
     approval|waiting|blocked) sub_needs_for_payload="$needs" ;;
   esac
   body="$(bun -e '
-    const [id, id_raw, parent_id, status, needs] = process.argv.slice(1);
+    const [id, id_raw, parent_id, status, instance, needs] = process.argv.slice(1);
     const payload = { id, id_raw, parent_id, status };
+    if (typeof instance === "string" && instance.length > 0) {
+      payload.instance = instance;
+    }
     if (typeof needs === "string" && needs.length > 0) {
       payload.needs = needs;
     }
     process.stdout.write(JSON.stringify(payload));
-  ' "$id" "$id_raw" "$parent_id" "$sub_status" "$sub_needs_for_payload")"
+  ' "$id" "$id_raw" "$parent_id" "$sub_status" "$agent_type" "$sub_needs_for_payload")"
 else
   # Top-level fire — capture full card metadata (elapsed-time anchor +
   # aerospace desktop) before building the payload.
@@ -413,50 +429,5 @@ curl --silent --show-error \
   -X POST \
   --data "$body" \
   "$url" >/dev/null 2>&1 || true
-
-# Pre-registration POST: parent-side announcement of an upcoming subagent.
-# Fires only when this hook fire is the parent's `PreToolUse(Task)` with a
-# non-empty (after trim) `tool_input.description` — i.e. the moment Claude
-# Code is about to spawn a Task-tool subagent and the description is what
-# the dashboard will surface as the subagent's `instance`. The body uses a
-# dedicated `kind: "pre-register"` discriminator (chore [067] Decisions
-# Locked) so the server can distinguish it from a regular subagent state
-# POST. The subagent id derivation matches ADR 0002 — `id_raw =
-# "${parent_id}:${tool_use_id}"`, `id = sha256(id_raw)[0:8]` — so the
-# subagent's own later hook fires will derive the same id.
-# Trim leading/trailing whitespace from the candidate pre-registration
-# description ahead of the guarded branch below, so the branch's emptiness
-# check folds the three "no useful description" cases into one (absent
-# field, empty string, whitespace-only string — chore [067] Decisions
-# Locked; pattern mirrored from CLAUDE_DISPLAY_DETAIL above). Computed
-# unconditionally so it is in scope under `set -u` regardless of branch.
-pre_reg_desc_trimmed="${tool_input_description#"${tool_input_description%%[![:space:]]*}"}"
-pre_reg_desc_trimmed="${pre_reg_desc_trimmed%"${pre_reg_desc_trimmed##*[![:space:]]}"}"
-
-if [ -z "$parent_tool_use_id" ] \
-    && [ "$hook_event_name" = "PreToolUse" ] \
-    && [ "$tool_name" = "Task" ] \
-    && [ -n "$pre_reg_desc_trimmed" ]; then
-  pre_reg_parent_id="$shell_id"
-  pre_reg_id_raw="${pre_reg_parent_id}:${tool_use_id}"
-  pre_reg_id="$(printf '%s' "$pre_reg_id_raw" | shasum -a 256 | cut -c1-8)"
-  pre_reg_body="$(bun -e '
-    const [id, id_raw, parent_id, instance] = process.argv.slice(1);
-    process.stdout.write(JSON.stringify({
-      id,
-      id_raw,
-      parent_id,
-      instance,
-      kind: "pre-register",
-    }));
-  ' "$pre_reg_id" "$pre_reg_id_raw" "$pre_reg_parent_id" "$pre_reg_desc_trimmed")"
-  curl --silent --show-error \
-    --max-time 1 --connect-timeout 1 \
-    --fail \
-    -H 'Content-Type: application/json' \
-    -X POST \
-    --data "$pre_reg_body" \
-    "$url" >/dev/null 2>&1 || true
-fi
 
 exit 0
