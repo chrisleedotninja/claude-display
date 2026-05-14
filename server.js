@@ -61,7 +61,7 @@ const STATIC_FILES = {
   "/vendor/htm.module.js": "vendor/htm.module.js",
 };
 
-export function createServer({ port = 0, hostname = "127.0.0.1", logger = null } = {}) {
+export function createServer({ port = 0, hostname = "127.0.0.1", logger = null, verbose = false } = {}) {
   /** @type {Map<string, { id_raw?: string, status: string, event_at?: number }>} */
   const state = new Map();
 
@@ -332,6 +332,25 @@ export function createServer({ port = 0, hostname = "127.0.0.1", logger = null }
     hostname,
     async fetch(req) {
       const url = new URL(req.url);
+      // Verbose pre-handle dump: read the body off a clone so the original
+      // request can still be consumed by `handle` (which calls `req.json()`
+      // for POST /events). Body-read errors fall back to a sentinel rather
+      // than crashing the server.
+      if (logger && verbose) {
+        let body;
+        try {
+          const cloned = req.clone();
+          body = await cloned.text();
+        } catch (err) {
+          body = `<body read error: ${err?.message ?? "unknown"}>`;
+        }
+        logger.dump("request", {
+          method: req.method,
+          path: url.pathname,
+          headers: req.headers,
+          body,
+        });
+      }
       const res = await handle(req);
       if (logger) {
         logger.log(`${req.method} ${url.pathname} ${res.status}`);
@@ -351,7 +370,15 @@ export function createServer({ port = 0, hostname = "127.0.0.1", logger = null }
 if (import.meta.main) {
   const port = Number(process.env.CLAUDE_DISPLAY_PORT) || 7878;
   const logPath = process.env.CLAUDE_DISPLAY_LOG_PATH || "/tmp/claude-display.log";
-  const logger = createLogger({ path: logPath });
-  const { server } = createServer({ port, hostname: "127.0.0.1", logger });
+  // Verbose toggle resolution: --verbose / -v on argv, OR CLAUDE_DISPLAY_VERBOSE=1.
+  // Either source flips the same boolean; both passed through to logger + server
+  // so dump() is gated consistently across sinks.
+  const argv = process.argv.slice(2);
+  const verbose =
+    argv.includes("--verbose") ||
+    argv.includes("-v") ||
+    process.env.CLAUDE_DISPLAY_VERBOSE === "1";
+  const logger = createLogger({ path: logPath, verbose });
+  const { server } = createServer({ port, hostname: "127.0.0.1", logger, verbose });
   logger.log(`claude-display listening on http://${server.hostname}:${server.port}`);
 }
