@@ -126,7 +126,16 @@ if [ -z "$status" ]; then
       esac
       ;;
     PermissionRequest)
-      status="approval"
+      # When the permission prompt is specifically for AskUserQuestion,
+      # surface the underlying intent (`waiting` for the user's answer)
+      # rather than the surface ask (`approval` for the tool). The card
+      # then persists through the actual question-answering phase rather
+      # than showing `approval` after the permission has already been
+      # granted but the user has not yet answered the question.
+      case "$tool_name" in
+        AskUserQuestion) status="waiting" ;;
+        *) status="approval" ;;
+      esac
       ;;
     Notification)
       # Case-insensitive substring check for "permission".
@@ -175,11 +184,16 @@ if [ -z "$needs" ] && [ "$hook_event_name" = "Notification" ]; then
   esac
 fi
 # PermissionRequest fires when Claude Code is about to show an inline
-# permission prompt for a tool call. The event has no `message` field, so
-# we set `needs="approve-tool"` unconditionally — by definition every
-# PermissionRequest is a tool-approval ask.
+# permission prompt for a tool call. By default that's an `approve-tool`
+# ask, except when the tool being approved is AskUserQuestion — in that
+# case the surface ask is the permission prompt but the underlying ask
+# is for the user's answer, so route it as `answer-question` to match
+# the resolved `waiting` status in the status block above.
 if [ -z "$needs" ] && [ "$hook_event_name" = "PermissionRequest" ]; then
-  needs="approve-tool"
+  case "$tool_name" in
+    AskUserQuestion) needs="answer-question" ;;
+    *) needs="approve-tool" ;;
+  esac
 fi
 # PreToolUse(AskUserQuestion) blocks the agent on a user answer — pair
 # the `waiting` status set above with the `answer-question` needs tag.
