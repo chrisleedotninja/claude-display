@@ -71,6 +71,20 @@ CLAUDE_DISPLAY_PORT=9000 bun run start
 
 The server binds only to `127.0.0.1` and is not reachable from other hosts.
 
+## Logging
+
+The server tees every runtime log line — startup, one-line per-HTTP-request summaries (`<METHOD> <path> <status>`), and SSE subscriber connect/disconnect — to stdout AND to `/tmp/claude-display.log` (append mode, never truncated across restarts).
+
+Opt into verbose mode to additionally dump the full request payload (method, path, headers, and body) for each incoming HTTP request, including the SSE stream-connect request. Toggle it with either a CLI flag or an env var; the two paths are equivalent:
+
+```
+bun run start --verbose
+bun run start -v
+CLAUDE_DISPLAY_VERBOSE=1 bun run start
+```
+
+Without the flag or env var, output is one-line summaries only. Non-JSON and empty bodies render in a safe textual form and never crash the server.
+
 ## Dashboard
 
 After `bun run start`, open `http://127.0.0.1:7878/` in a browser. The page renders in the Tokyo Night Storm palette with a header strip (`▍ claude code · mission board` in mono uppercase on the left with the `▍` rule glyph tinted cyan, live `HH:MM` clock on the right) and a stats strip below it showing live counts for Awaiting, Blocked, Active, Done, and Instances. Each session card uses a three-column layout: an 88px tone-colored rail with a 28×28px glyph chip and an uppercase status label; a flex body column showing the instance name, branch, subagent count, relative time, title, detail, and optional needs pill; and a 240px meta column with mono key/value rows for Repo, Tmux, Desk, Elapsed, and At. Status glyphs are inline SVGs with distinct shapes per status (diamond, speech bubble, octagon, spinner, beaker, magnifier, check, dashed circle) and per-status animations (pulse ring, blink, spin, shimmer). Attention and danger cards get a tone-colored box-shadow ring and glow; older cards dim via an opacity ramp (newest at 1.0, oldest at 0.55). When a `needs` value is set, attention-state cards carry a per-category needs pill (see [`docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md`](docs/decisions/0003-needs-taxonomy-and-authoring-scheme.md)). Subagents render as nested rows in a `.ms-group` panel attached below their parent, on a five-column grid (connector | glyph pill | status label | sub-body | sub-meta): `├─`/`└─` connectors, tone-tinted glyph pills, the sub-body holding the `parent.instance › subagent.instance` name plus an optional sub-title, sub-detail, and sub-needs chip, and a right-aligned sub-meta column showing elapsed over relative time. Each subagent row's name slot shows `parent.instance › subagent.instance` when both sides are present, falling back to the bare 8-character subagent id when either side is missing — no free-floating `›` with one side empty. The most-recently-updated card group bubbles to the top. Updates arrive live over SSE — no manual refresh — and the page reconnects automatically if the channel drops. A Tweaks panel (Appearance / Filters / Metadata fields sections) controls the animation toggle, tone-group filters (attention / active / success / neutral), and per-card metadata field visibility, with selections persisted in `localStorage`.
