@@ -8,6 +8,7 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createLogger } from "./logger.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -60,7 +61,7 @@ const STATIC_FILES = {
   "/vendor/htm.module.js": "vendor/htm.module.js",
 };
 
-export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
+export function createServer({ port = 0, hostname = "127.0.0.1", logger = null } = {}) {
   /** @type {Map<string, { id_raw?: string, status: string, event_at?: number }>} */
   const state = new Map();
 
@@ -68,10 +69,9 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
   const subscribers = new Set();
   const sseEncoder = new TextEncoder();
 
-  const server = Bun.serve({
-    port,
-    hostname,
-    async fetch(req) {
+  // Inner handler factored so the outer Bun.serve `fetch` can wrap the
+  // response with one summary log line per request (method, path, status).
+  async function handle(req) {
       const url = new URL(req.url);
 
       if (req.method === "GET" && url.pathname === "/api/state") {
@@ -96,9 +96,11 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
             controller.enqueue(sseEncoder.encode(":\n\n"));
             registered = controller;
             subscribers.add(controller);
+            if (logger) logger.log(`sse connect (subscribers=${subscribers.size})`);
           },
           cancel() {
             if (registered) subscribers.delete(registered);
+            if (logger) logger.log(`sse disconnect (subscribers=${subscribers.size})`);
           },
         });
         return new Response(stream, {
@@ -323,6 +325,18 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
       }
 
       return new Response("not found", { status: 404 });
+  }
+
+  const server = Bun.serve({
+    port,
+    hostname,
+    async fetch(req) {
+      const url = new URL(req.url);
+      const res = await handle(req);
+      if (logger) {
+        logger.log(`${req.method} ${url.pathname} ${res.status}`);
+      }
+      return res;
     },
   });
 
@@ -336,6 +350,8 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
 
 if (import.meta.main) {
   const port = Number(process.env.CLAUDE_DISPLAY_PORT) || 7878;
-  const { server } = createServer({ port, hostname: "127.0.0.1" });
-  console.log(`claude-display listening on http://${server.hostname}:${server.port}`);
+  const logPath = process.env.CLAUDE_DISPLAY_LOG_PATH || "/tmp/claude-display.log";
+  const logger = createLogger({ path: logPath });
+  const { server } = createServer({ port, hostname: "127.0.0.1", logger });
+  logger.log(`claude-display listening on http://${server.hostname}:${server.port}`);
 }
