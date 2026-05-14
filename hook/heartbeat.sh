@@ -109,6 +109,9 @@ if [ -z "$status" ]; then
     UserPromptSubmit|PreToolUse|PostToolUse|PreCompact)
       status="working"
       ;;
+    PermissionRequest)
+      status="approval"
+      ;;
     Notification)
       # Case-insensitive substring check for "permission".
       case "$lower_message" in
@@ -154,6 +157,13 @@ if [ -z "$needs" ] && [ "$hook_event_name" = "Notification" ]; then
   case "$lower_message" in
     *permission*) needs="approve-tool" ;;
   esac
+fi
+# PermissionRequest fires when Claude Code is about to show an inline
+# permission prompt for a tool call. The event has no `message` field, so
+# we set `needs="approve-tool"` unconditionally — by definition every
+# PermissionRequest is a tool-approval ask.
+if [ -z "$needs" ] && [ "$hook_event_name" = "PermissionRequest" ]; then
+  needs="approve-tool"
 fi
 
 pane_or_tty="${TMUX_PANE:-${TTY:-PPID-$PPID}}"
