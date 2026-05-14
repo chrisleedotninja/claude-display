@@ -8,6 +8,7 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createLogger } from "./logger.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -60,7 +61,7 @@ const STATIC_FILES = {
   "/vendor/htm.module.js": "vendor/htm.module.js",
 };
 
-export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
+export function createServer({ port = 0, hostname = "127.0.0.1", logger = null, verbose = false } = {}) {
   /** @type {Map<string, { id_raw?: string, status: string, event_at?: number }>} */
   const state = new Map();
 
@@ -68,10 +69,9 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
   const subscribers = new Set();
   const sseEncoder = new TextEncoder();
 
-  const server = Bun.serve({
-    port,
-    hostname,
-    async fetch(req) {
+  // Inner handler factored so the outer Bun.serve `fetch` can wrap the
+  // response with one summary log line per request (method, path, status).
+  async function handle(req) {
       const url = new URL(req.url);
 
       if (req.method === "GET" && url.pathname === "/api/state") {
@@ -96,9 +96,11 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
             controller.enqueue(sseEncoder.encode(":\n\n"));
             registered = controller;
             subscribers.add(controller);
+            if (logger) logger.log(`sse connect (subscribers=${subscribers.size})`);
           },
           cancel() {
             if (registered) subscribers.delete(registered);
+            if (logger) logger.log(`sse disconnect (subscribers=${subscribers.size})`);
           },
         });
         return new Response(stream, {
@@ -323,6 +325,37 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
       }
 
       return new Response("not found", { status: 404 });
+  }
+
+  const server = Bun.serve({
+    port,
+    hostname,
+    async fetch(req) {
+      const url = new URL(req.url);
+      // Verbose pre-handle dump: read the body off a clone so the original
+      // request can still be consumed by `handle` (which calls `req.json()`
+      // for POST /events). Body-read errors fall back to a sentinel rather
+      // than crashing the server.
+      if (logger && verbose) {
+        let body;
+        try {
+          const cloned = req.clone();
+          body = await cloned.text();
+        } catch (err) {
+          body = `<body read error: ${err?.message ?? "unknown"}>`;
+        }
+        logger.dump("request", {
+          method: req.method,
+          path: url.pathname,
+          headers: req.headers,
+          body,
+        });
+      }
+      const res = await handle(req);
+      if (logger) {
+        logger.log(`${req.method} ${url.pathname} ${res.status}`);
+      }
+      return res;
     },
   });
 
@@ -336,6 +369,16 @@ export function createServer({ port = 0, hostname = "127.0.0.1" } = {}) {
 
 if (import.meta.main) {
   const port = Number(process.env.CLAUDE_DISPLAY_PORT) || 7878;
-  const { server } = createServer({ port, hostname: "127.0.0.1" });
-  console.log(`claude-display listening on http://${server.hostname}:${server.port}`);
+  const logPath = process.env.CLAUDE_DISPLAY_LOG_PATH || "/tmp/claude-display.log";
+  // Verbose toggle resolution: --verbose / -v on argv, OR CLAUDE_DISPLAY_VERBOSE=1.
+  // Either source flips the same boolean; both passed through to logger + server
+  // so dump() is gated consistently across sinks.
+  const argv = process.argv.slice(2);
+  const verbose =
+    argv.includes("--verbose") ||
+    argv.includes("-v") ||
+    process.env.CLAUDE_DISPLAY_VERBOSE === "1";
+  const logger = createLogger({ path: logPath, verbose });
+  const { server } = createServer({ port, hostname: "127.0.0.1", logger, verbose });
+  logger.log(`claude-display listening on http://${server.hostname}:${server.port}`);
 }
