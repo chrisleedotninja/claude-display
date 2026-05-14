@@ -111,8 +111,19 @@ if [ -z "$status" ]; then
     SessionStart|Stop|SubagentStop)
       status="idle"
       ;;
-    UserPromptSubmit|PreToolUse|PostToolUse|PreCompact|SubagentStart)
+    UserPromptSubmit|PostToolUse|PreCompact|SubagentStart)
       status="working"
+      ;;
+    PreToolUse)
+      # AskUserQuestion blocks the agent until the user answers; surface
+      # that as `waiting` immediately rather than the default `working`,
+      # mirroring the PermissionRequest → `approval` pattern. PostToolUse
+      # for the same tool naturally flips status back to `working` once
+      # the user has answered.
+      case "$tool_name" in
+        AskUserQuestion) status="waiting" ;;
+        *) status="working" ;;
+      esac
       ;;
     PermissionRequest)
       status="approval"
@@ -169,6 +180,13 @@ fi
 # PermissionRequest is a tool-approval ask.
 if [ -z "$needs" ] && [ "$hook_event_name" = "PermissionRequest" ]; then
   needs="approve-tool"
+fi
+# PreToolUse(AskUserQuestion) blocks the agent on a user answer — pair
+# the `waiting` status set above with the `answer-question` needs tag.
+if [ -z "$needs" ] \
+    && [ "$hook_event_name" = "PreToolUse" ] \
+    && [ "$tool_name" = "AskUserQuestion" ]; then
+  needs="answer-question"
 fi
 
 pane_or_tty="${TMUX_PANE:-${TTY:-PPID-$PPID}}"
