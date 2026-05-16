@@ -69,6 +69,7 @@ message="$(extract_field message)"
 tool_name="$(extract_field tool_name)"
 tool_use_id="$(extract_field tool_use_id)"
 session_id="$(extract_field session_id)"
+prompt="$(extract_field prompt)"
 tool_input_description="$(extract_tool_input_description)"
 # Claude Code's current subagent model marks subagent hook fires with a
 # top-level `agent_id` string field (and an accompanying `agent_type`).
@@ -290,6 +291,12 @@ else
   # aerospace desktop) before building the payload.
   id="$shell_id"
   id_raw="$shell_id_raw"
+  # Per-session stash file: keyed by `shell_id` so concurrent shells in the
+  # same cwd (different TMUX_PANE/TTY) land on distinct files. The file
+  # carries the most recent `UserPromptSubmit` prompt (already first-line +
+  # 200-char + ellipsis truncated) so subsequent non-UserPromptSubmit fires
+  # in the same session can pick up the value when no env override is set.
+  stash_file="${TMPDIR:-/tmp}/claude-display-prompt-${shell_id}"
   # Capture the elapsed-time anchor at fire time as integer milliseconds since
   # the Unix epoch. The hook owns this timestamp so the dashboard never has to
   # derive it later. See docs/decisions/0002-elapsed-time-anchor.md.
@@ -428,6 +435,31 @@ else
   detail="${CLAUDE_DISPLAY_DETAIL:-}"
   detail="${detail#"${detail%%[![:space:]]*}"}"
   detail="${detail%"${detail##*[![:space:]]}"}"
+
+  # On UserPromptSubmit, truncate the prompt to first line + 200 chars +
+  # ellipsis-on-cut and stash it into the per-session stash file so
+  # subsequent fires in the same session can pick it up. Truncation is done
+  # inside `bun -e` so multi-byte UTF-8 is handled by a single runtime (a
+  # shell `cut`/`head` pipeline would otherwise split mid-codepoint).
+  if [ "$hook_event_name" = "UserPromptSubmit" ] && [ -n "$prompt" ]; then
+    truncated_prompt="$(PROMPT="$prompt" bun -e '
+      const p = process.env.PROMPT || "";
+      const nlIdx = p.indexOf("\n");
+      const cutByLine = nlIdx !== -1;
+      const firstLine = cutByLine ? p.slice(0, nlIdx) : p;
+      const chars = Array.from(firstLine);
+      const cutByLen = chars.length > 200;
+      const head = cutByLen ? chars.slice(0, 200).join("") : firstLine;
+      const out = (cutByLine || cutByLen) ? head + "…" : head;
+      process.stdout.write(out);
+    ')"
+    printf '%s' "$truncated_prompt" > "$stash_file" 2>/dev/null || true
+  fi
+  # When no env-override detail is set, fall through to the stashed prompt
+  # for this session.
+  if [ -z "$detail" ] && [ -f "$stash_file" ]; then
+    detail="$(cat "$stash_file" 2>/dev/null || true)"
+  fi
 
   body="$(bun -e '
     const [id, id_raw, status, repo, branch, session_label, desktop, event_at, needs, instance, title, detail] = process.argv.slice(1);
